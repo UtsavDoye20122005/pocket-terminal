@@ -1,0 +1,19 @@
+{
+  "name": "pocket-terminal-relay",
+  "version": "3.0.0",
+  "private": true,
+  "description": "Relay between your phone and your Mac. Runs on your Oracle free server.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@xterm/addon-fit": "0.11.0",
+    "@xterm/xterm": "6.0.0",
+    "web-push": "3.6.7",
+    "ws": "8.22.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

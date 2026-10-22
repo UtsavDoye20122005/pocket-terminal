@@ -1,0 +1,20 @@
+{
+  "name": "pocket-terminal-agent",
+  "version": "3.0.0",
+  "private": true,
+  "description": "Runs on your Mac. Connects out to your relay and gives it a shell.",
+  "main": "agent.js",
+  "scripts": {
+    "start": "node agent.js",
+    "setup": "node setup.js secrets",
+    "postinstall": "node -e \"try{require('fs').chmodSync(require.resolve('node-pty/package.json').replace('package.json','prebuilds/'+process.platform+'-'+process.arch+'/spawn-helper'),0o755)}catch(e){}\"",
+    "test": "node test/power.test.js"
+  },
+  "dependencies": {
+    "node-pty": "1.1.0",
+    "ws": "8.22.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
