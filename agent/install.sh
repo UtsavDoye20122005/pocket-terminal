@@ -1,12 +1,10 @@
 #!/bin/bash
 # Pocket Terminal: Mac installer. Safe to run again any time.
 #
-# It will:
-#   1. install the agent's packages
-#   2. ask for your phone password and make a secret token for this Mac
-#   3. let the power brain control sleep (asks for your Mac password once)
-#   4. write the Oracle server setup script and copy it to your clipboard
-#   5. connect to your Oracle server and start the agent at every login
+#   1. installs the agent's packages
+#   2. lets the power brain manage sleep (asks for your Mac password once)
+#   3. starts the agent now and at every login
+#   4. shows a QR code: scan it with your phone to pair
 set -e
 cd "$(dirname "$0")"
 DIR="$(pwd)"
@@ -16,54 +14,48 @@ PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
 LOG="$HOME_DIR/agent.log"
 step() { printf "\n\033[1;34m[%s]\033[0m %s\n" "$1" "$2"; }
 
+[ "$(uname)" = "Darwin" ] || { echo "Pocket Terminal's agent runs on macOS."; exit 1; }
 NODE="$(command -v node || true)"
-[ -z "$NODE" ] && { echo "Install Node.js first: https://nodejs.org (LTS). Then run this again."; exit 1; }
+[ -z "$NODE" ] && { echo "Install Node.js 18.20+ first: https://nodejs.org (LTS). Then run this again."; exit 1; }
+"$NODE" -e 'const [a,b]=process.versions.node.split(".").map(Number); process.exit(a>18||(a===18&&b>=20)?0:1)' \
+  || { echo "Your Node.js is too old ($("$NODE" -v)). Install the LTS from https://nodejs.org"; exit 1; }
 mkdir -p "$HOME_DIR"; chmod 700 "$HOME_DIR"
 
-# Only one version should run. Stop older ones.
+# Older Pocket Terminal versions: stop them so only one runs.
 for old in com.pocketterm.server com.pocketterminal.local; do
   launchctl bootout "gui/$(id -u)/$old" 2>/dev/null || true
+  rm -f "$HOME/Library/LaunchAgents/$old.plist"
 done
 
-step 1/5 "Installing packages"
-npm install --omit=dev --no-fund --no-audit --silent
+step 1/4 "Installing packages"
+npm install --omit=dev --no-fund --no-audit --loglevel=error
 
-step 2/5 "Phone password and Mac token"
-node setup.js secrets
-
-step 3/5 "Letting the power brain manage sleep"
+step 2/4 "Letting the power brain manage sleep"
 SUDOERS=/etc/sudoers.d/pocket-terminal
-ME="$(whoami)"
-RULE="$ME ALL=(root) NOPASSWD: /usr/bin/pmset -a disablesleep 0, /usr/bin/pmset -a disablesleep 1, /usr/bin/pmset schedule wake *, /usr/bin/pmset schedule cancel wake *"
 if [ ! -f "$SUDOERS" ]; then
-  echo "macOS needs your Mac login password once, so the agent can switch lid-sleep on/off"
-  echo "and set wake-up alarms. It can ONLY run those exact pmset commands, nothing else."
+  echo "macOS needs your Mac login password once, so the agent can keep the Mac awake with"
+  echo "the lid closed and set wake-up alarms. It can ONLY run these 4 exact commands:"
+  echo "  pmset -a disablesleep 0|1   and   pmset schedule [cancel] wake <time>"
+  RULE="$(whoami) ALL=(root) NOPASSWD: /usr/bin/pmset -a disablesleep 0, /usr/bin/pmset -a disablesleep 1, /usr/bin/pmset schedule wake *, /usr/bin/pmset schedule cancel wake *"
   TMP="$(mktemp)"; echo "$RULE" > "$TMP"
   sudo visudo -cf "$TMP" >/dev/null
   sudo install -m 0440 -o root -g wheel "$TMP" "$SUDOERS"
   rm -f "$TMP"
-  # Keep Wi-Fi connections alive through short sleeps.
-  sudo pmset -a tcpkeepalive 1
+  sudo pmset -a tcpkeepalive 1   # keep Wi-Fi links alive through short sleeps
 fi
 sudo -n /usr/bin/pmset -a disablesleep 0 && echo "Power control ready ✅"
 
-step 4/5 "Oracle server setup script"
-REPO_FILE="$HOME_DIR/repo"
-DEFAULT_REPO="$(cat "$REPO_FILE" 2>/dev/null || echo "https://github.com/UtsavDoye20122005/pocket-terminal")"
-read -r -p "Your GitHub repo URL [Enter = $DEFAULT_REPO]: " REPO
-REPO="${REPO:-$DEFAULT_REPO}"; echo "$REPO" > "$REPO_FILE"
-CI="$(node setup.js cloud-init "$REPO")"
-pbcopy < "$CI"
-echo "Saved to $CI and copied to your clipboard 📋"
-echo "Paste it into Oracle: Create instance → Show advanced options → Management → Paste cloud-init script."
-
-step 5/5 "Connect to your server"
-set +e; node setup.js relay; RC=$?; set -e
-if [ $RC -eq 3 ]; then
-  echo; echo "Next: create the Oracle server (see README), then run this installer again."; exit 0
+step 3/4 "Pairing key"
+# If you forked this repo, your phone app lives on YOUR GitHub Pages. Use it automatically.
+APP_ARGS=()
+ORIGIN="$(git -C "$DIR/.." remote get-url origin 2>/dev/null || true)"
+if [[ "$ORIGIN" =~ github\.com[:/]([^/]+)/([^/.]+)(\.git)?$ ]]; then
+  OWNER="$(echo "${BASH_REMATCH[1]}" | tr '[:upper:]' '[:lower:]')"; REPO="${BASH_REMATCH[2]}"
+  APP_ARGS=(--app-url "https://$OWNER.github.io/$REPO/")
 fi
-[ $RC -ne 0 ] && exit $RC
+"$NODE" pair.js --link-only "${APP_ARGS[@]}" >/dev/null   # creates the key the first time
 
+step 4/4 "Starting the agent now and at every login"
 mkdir -p "$HOME/Library/LaunchAgents"
 cat > "$PLIST" <<PL
 <?xml version="1.0" encoding="UTF-8"?>
@@ -81,6 +73,7 @@ cat > "$PLIST" <<PL
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
   <key>ProcessType</key><string>Interactive</string>
+  <key>Umask</key><integer>63</integer>
   <key>StandardOutPath</key><string>$LOG</string>
   <key>StandardErrorPath</key><string>$LOG</string>
 </dict>
@@ -88,11 +81,8 @@ cat > "$PLIST" <<PL
 PL
 launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
 launchctl bootstrap "gui/$(id -u)" "$PLIST"
-sleep 4
-echo; tail -n 4 "$LOG" || true
-if grep -q "connected to relay" "$LOG" 2>/dev/null; then
-  echo; echo "✅ All set. Open $(node -e "console.log(require('$HOME_DIR/agent.json').relay)") on your phone."
-else
-  echo; echo "Agent is running but not connected yet. If your server was just created, wait 5 minutes."
-  echo "Watch it with:  tail -f $LOG"
-fi
+sleep 3
+if grep -q "mailbox ready" "$LOG" 2>/dev/null; then echo "Agent running ✅"; else echo "Agent started. If something's off, see: $LOG"; fi
+
+echo
+"$NODE" pair.js

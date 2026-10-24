@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https: http://127.0.0.1:* http://localhost:*; img-src 'self' data:; worker-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Terminal">
+<meta name="theme-color" content="#0d1117">
+<title>Pocket Terminal</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="stylesheet" href="vendor/xterm.css">
+<style>
+  :root { --bg:#0d1117; --bar:#161b22; --key:#21262d; --line:#30363d; --blue:#2f81f7; --green:#3fb950; --red:#f85149; --amber:#d29922; --fg:#e6edf3; --dim:#8b949e; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--fg); overflow:hidden; font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  button { font:inherit; color:inherit; cursor:pointer; }
+  [hidden] { display:none !important; }
+
+  /* gate screens: pair / lock / not paired */
+  .gate { position:fixed; inset:0; display:grid; place-items:center; padding:16px; padding-top:env(safe-area-inset-top); }
+  .gate form, .gate .box { width:100%; max-width:360px; display:flex; flex-direction:column; gap:12px; }
+  .gate h1 { margin:0; font-size:22px; display:flex; align-items:center; gap:10px; }
+  .gate h1 img { width:32px; height:32px; }
+  .gate p { margin:0; color:var(--dim); font-size:14px; line-height:1.45; }
+  .gate input { font-size:20px; letter-spacing:4px; text-align:center; padding:12px; border-radius:10px; border:1px solid var(--line); background:var(--bar); color:var(--fg); }
+  .gate input:focus { outline:2px solid var(--blue); border-color:transparent; }
+  .gate label { display:flex; gap:8px; align-items:center; color:var(--dim); font-size:14px; }
+  .gate code { background:var(--bar); padding:2px 6px; border-radius:6px; font-size:13px; }
+  .err { color:var(--red); min-height:1.2em; font-size:14px; }
+  .btn { background:var(--blue); color:#fff; border:0; border-radius:9px; padding:11px 14px; font-size:15px; font-weight:600; }
+  .btn.ghost { background:var(--key); color:var(--fg); font-weight:500; }
+  .btn.small { padding:6px 10px; font-size:13px; border-radius:7px; }
+  .btn.danger { background:#3d1214; color:var(--red); }
+
+  /* main app */
+  #app { position:fixed; left:0; right:0; top:0; height:100%; display:flex; flex-direction:column; padding-top:env(safe-area-inset-top); }
+  header { flex:none; display:flex; align-items:center; gap:8px; padding:7px 10px; background:var(--bar); font-size:13px; }
+  #dot { width:9px; height:9px; border-radius:50%; background:var(--amber); flex:none; }
+  #dot.on { background:var(--green); box-shadow:0 0 0 3px #3fb95033; } #dot.off { background:var(--red); } #dot.slow { background:var(--amber); }
+  #status { flex:1; min-width:0; color:var(--dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .chip { flex:none; padding:3px 8px; border-radius:999px; background:var(--key); font-size:12px; }
+  .chip.low { color:var(--red); }
+  #menuBtn { flex:none; background:var(--key); border:0; border-radius:7px; padding:5px 10px; font-size:13px; position:relative; }
+  #menuBtn .n { position:absolute; top:-4px; right:-4px; min-width:16px; height:16px; padding:0 4px; border-radius:8px; background:var(--blue); font-size:10px; line-height:16px; }
+  #menuBtn .n:empty { display:none; }
+  #term { flex:1; min-height:0; padding:4px 0 0 4px; position:relative; }
+  #banner { position:absolute; left:12px; right:12px; bottom:12px; padding:14px; border-radius:12px; background:#161b22f2; border:1px solid var(--line); font-size:14px; line-height:1.45; z-index:5; }
+  #banner b { display:block; font-size:15px; margin-bottom:2px; }
+  #banner .row { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+  #keys { flex:none; display:flex; gap:6px; overflow-x:auto; padding:6px 8px calc(6px + env(safe-area-inset-bottom)); background:var(--bar); scrollbar-width:none; }
+  #keys::-webkit-scrollbar { display:none; }
+  #keys button { flex:none; min-width:42px; height:38px; padding:0 10px; border:0; border-radius:7px; background:var(--key); font:500 15px ui-monospace, Menlo, monospace; touch-action:manipulation; }
+  #keys button.on { background:var(--blue); }
+  #keys button.star { background:#1f3a5f; }
+
+  .sheet { position:fixed; inset:0; background:#000a; display:none; z-index:10; }
+  .sheet.show { display:flex; align-items:flex-end; }
+  .panel { width:100%; max-height:88%; display:flex; flex-direction:column; background:var(--bar); border-radius:16px 16px 0 0; padding:12px 14px calc(14px + env(safe-area-inset-bottom)); }
+  .tabs { display:flex; gap:4px; background:var(--bg); padding:3px; border-radius:9px; margin-bottom:12px; }
+  .tabs button { flex:1; border:0; background:none; padding:7px 0; border-radius:7px; font-size:13px; color:var(--dim); }
+  .tabs button.on { background:var(--key); color:var(--fg); }
+  .pane { display:none; overflow-y:auto; min-height:0; } .pane.on { display:block; }
+  .hint { margin:0 0 10px; color:var(--dim); font-size:13px; line-height:1.4; }
+  .row2 { display:flex; gap:8px; }
+  input.txt { flex:1; min-width:0; font:15px ui-monospace, Menlo, monospace; padding:10px; border-radius:8px; border:1px solid var(--line); background:var(--bg); color:var(--fg); }
+  input.txt.name { font-family:inherit; flex:0 0 34%; }
+  .list { margin-top:12px; display:flex; flex-direction:column; gap:8px; }
+  .card { border:1px solid var(--line); border-radius:10px; padding:9px 10px; }
+  .card .top { display:flex; gap:8px; align-items:center; }
+  .card code { flex:1; min-width:0; font:13px ui-monospace, Menlo, monospace; overflow-wrap:anywhere; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:9px; background:var(--key); color:var(--dim); flex:none; }
+  .tag.done { background:#12361f; color:var(--green); } .tag.fail { background:#3d1214; color:var(--red); } .tag.running { background:#3a2a0b; color:var(--amber); }
+  .card pre { margin:8px 0 0; max-height:240px; overflow:auto; background:var(--bg); padding:8px; border-radius:6px; font-size:12px; white-space:pre-wrap; overflow-wrap:anywhere; }
+  .meta { margin-top:5px; color:var(--dim); font-size:11px; display:flex; justify-content:space-between; gap:8px; }
+  .x { background:none; border:0; color:var(--dim); font-size:12px; padding:0; }
+  .empty { color:var(--dim); font-size:13px; text-align:center; padding:14px; }
+  .snip { display:flex; align-items:center; gap:10px; }
+  .snip .run { flex:1; min-width:0; text-align:left; background:none; border:0; padding:0; }
+  .snip .run b { display:block; font-size:14px; }
+  .snip .run code { color:var(--dim); font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block; }
+  .stat { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; margin-bottom:12px; }
+  .stat div { background:var(--bg); border-radius:9px; padding:9px; }
+  .stat small { display:block; color:var(--dim); font-size:11px; margin-bottom:2px; }
+  .stat span { font-size:15px; font-weight:600; }
+  .field { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:10px 0; border-top:1px solid var(--line); font-size:14px; }
+  .field small { display:block; color:var(--dim); font-size:12px; margin-top:2px; overflow-wrap:anywhere; }
+  .seg { display:flex; background:var(--bg); border-radius:8px; padding:2px; flex:none; }
+  .seg button { border:0; background:none; padding:6px 9px; border-radius:6px; font-size:12px; color:var(--dim); }
+  .seg button.on { background:var(--blue); color:#fff; }
+  .note { font-size:12px; color:var(--amber); min-height:16px; margin-top:6px; }
+  .toast { position:fixed; left:50%; top:calc(56px + env(safe-area-inset-top)); transform:translateX(-50%); background:var(--key); border:1px solid var(--line); padding:8px 14px; border-radius:999px; font-size:13px; z-index:20; display:none; max-width:90%; text-align:center; }
+</style>
+</head>
+<body>
+
+<!-- 1. Opened from the Mac's QR code: choose a PIN -->
+<div class="gate" id="gate-pair" hidden>
+  <form id="pairForm">
+    <h1><img src="icon.svg" alt="">Pair with <span id="pairName">your Mac</span></h1>
+    <p>Choose an app PIN (6+ digits or a passphrase). It locks the pairing key on this phone. You'll type it when you open the app.</p>
+    <input id="pin1" type="password" inputmode="numeric" autocomplete="new-password" placeholder="PIN" minlength="6" required>
+    <input id="pin2" type="password" inputmode="numeric" autocomplete="new-password" placeholder="PIN again" minlength="6" required>
+    <button class="btn">Pair this phone</button>
+    <p class="err" id="pairErr"></p>
+  </form>
+</div>
+
+<!-- 2. Locked: enter PIN -->
+<div class="gate" id="gate-lock" hidden>
+  <form id="lockForm">
+    <h1><img src="icon.svg" alt="">Pocket Terminal</h1>
+    <p>Unlock <b id="lockName">your Mac</b></p>
+    <input id="pin" type="password" inputmode="numeric" autocomplete="current-password" placeholder="PIN" required>
+    <label><input type="checkbox" id="remember" checked> Stay unlocked for 12 hours</label>
+    <button class="btn">Unlock</button>
+    <p class="err" id="lockErr"></p>
+  </form>
+</div>
+
+<!-- 3. Not paired yet -->
+<div class="gate" id="gate-none" hidden>
+  <div class="box">
+    <h1><img src="icon.svg" alt="">Pocket Terminal</h1>
+    <p>Use your Mac's terminal from this phone: from anywhere, even with the lid closed. Phone and Mac connect <b>directly</b> and everything is end-to-end encrypted.</p>
+    <p>To pair: on your Mac run <code>bash install.sh</code> (or <code>node pair.js</code>), then scan the QR code with this phone's camera.</p>
+  </div>
+</div>
+
+<!-- 4. The app -->
+<div id="app" hidden>
+  <header>
+    <span id="dot"></span><span id="status">Connecting…</span>
+    <span class="chip" id="batt" hidden></span>
+    <button id="menuBtn" aria-label="Menu">☰<span class="n" id="qn"></span></button>
+  </header>
+  <div id="term">
+    <div id="banner" hidden>
+      <b id="bannerTitle"></b><span id="bannerText"></span>
+      <div class="row" id="bannerRow"></div>
+    </div>
+  </div>
+  <div id="keys">
+    <button class="star" id="starKey" aria-label="Snippets">★</button>
+    <button data-k="esc">Esc</button><button data-k="tab">Tab</button>
+    <button data-mod="ctrl">Ctrl</button><button data-mod="alt">Alt</button>
+    <button data-k="up">↑</button><button data-k="down">↓</button><button data-k="left">←</button><button data-k="right">→</button>
+    <button data-k="cc">^C</button><button data-k="cd">^D</button><button data-k="cz">^Z</button><button data-k="cl">^L</button><button data-k="cr">^R</button>
+    <button data-t="|">|</button><button data-t="~">~</button><button data-t="/">/</button><button data-t="-">-</button>
+    <button data-t="_">_</button><button data-t="&gt;">&gt;</button><button data-t="$">$</button><button data-t="&amp;">&amp;</button>
+    <button data-k="home">Home</button><button data-k="end">End</button><button data-k="pgup">PgUp</button><button data-k="pgdn">PgDn</button>
+    <button data-k="paste">Paste</button>
+  </div>
+</div>
+
+<div class="sheet" id="sheet">
+  <div class="panel">
+    <div class="tabs" id="tabs">
+      <button data-tab="snippets">★ Snippets</button>
+      <button data-tab="queue">Commands</button>
+      <button data-tab="power">Power</button>
+      <button data-tab="settings">Settings</button>
+    </div>
+    <div class="pane" id="pane-snippets">
+      <p class="hint">Tap to run. When there's no live terminal, it's sent as a command and the reply shows in Commands.</p>
+      <div class="list" id="snips"></div>
+      <form class="row2" id="sform" style="margin-top:12px">
+        <input class="txt name" id="sname" placeholder="Name" maxlength="40">
+        <input class="txt" id="scmd" placeholder="command" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+        <button class="btn">Add</button>
+      </form>
+    </div>
+    <div class="pane" id="pane-queue">
+      <p class="hint">Each command runs once, on its own, in your home folder (max 10 min). If the Mac is asleep it runs at its next check-in.</p>
+      <form class="row2" id="qform">
+        <input class="txt" id="qcmd" placeholder="e.g. git -C ~/Developer/app pull" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+        <button class="btn">Run</button>
+      </form>
+      <div class="list" id="jobs"></div>
+      <div style="text-align:center;margin-top:10px"><button class="btn ghost small" id="clearDone">Clear finished</button></div>
+    </div>
+    <div class="pane" id="pane-power">
+      <div class="stat">
+        <div><small>Battery</small><span id="pBatt">–</span></div>
+        <div><small>Mac is</small><span id="pState">–</span></div>
+        <div><small>Next check-in</small><span id="pNext">–</span></div>
+      </div>
+      <p class="hint" id="pWhy"></p>
+      <div class="field"><div>On battery<small>Saver: sleeps when idle, wakes to check in. Instant: always awake (more battery).</small></div>
+        <div class="seg" data-set="batteryMode"><button data-v="saver">Saver</button><button data-v="instant">Instant</button></div></div>
+      <div class="field"><div>Check in every<small>How often a sleeping Mac wakes up</small></div>
+        <div class="seg" data-set="checkInMinutes"><button data-v="1">1m</button><button data-v="2">2m</button><button data-v="5">5m</button><button data-v="15">15m</button></div></div>
+      <div class="field"><div>Faster after use<small>1 min for 30 min after you use it, then 2 min, then the time above</small></div>
+        <div class="seg" data-set="smartCheckIn"><button data-v="true">On</button><button data-v="false">Off</button></div></div>
+      <div class="field"><div>Battery floor<small>Below this it stops staying awake</small></div>
+        <div class="seg" data-set="minBattery"><button data-v="10">10%</button><button data-v="20">20%</button><button data-v="30">30%</button></div></div>
+      <div class="field"><div>Awake on charger<small>Reachable with the lid closed while charging</small></div>
+        <div class="seg" data-set="awakeOnCharger"><button data-v="true">On</button><button data-v="false">Off</button></div></div>
+      <div class="note" id="pNote"></div>
+    </div>
+    <div class="pane" id="pane-settings">
+      <div class="field"><div>Connection<small id="connInfo">–</small></div><button class="btn small" id="retryDirect">Reconnect</button></div>
+      <div class="field"><div>Notifications<small>Install the free <b>ntfy</b> app, then subscribe to:<br><code id="notifyTopic"></code></small></div>
+        <button class="btn small ghost" id="copyTopic">Copy</button></div>
+      <div class="field"><div>Text size</div><div class="seg"><button id="smaller">A−</button><button id="bigger">A+</button></div></div>
+      <div class="field"><div>Lock now<small>Asks for your PIN next time</small></div><button class="btn small ghost" id="lockNow">Lock</button></div>
+      <div class="field"><div>Unpair this phone<small>Deletes the key from this phone. To lock out every phone, run <code>node pair.js --new</code> on the Mac.</small></div><button class="btn small danger" id="unpair">Unpair</button></div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="vendor/xterm.js"></script>
+<script src="vendor/addon-fit.js"></script>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

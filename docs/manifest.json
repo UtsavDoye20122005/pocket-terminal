@@ -1,0 +1,14 @@
+{
+  "name": "Pocket Terminal",
+  "short_name": "Terminal",
+  "description": "Your Mac's terminal on your phone. Direct, end-to-end encrypted, works with the lid closed.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0d1117",
+  "theme_color": "#0d1117",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "icon.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

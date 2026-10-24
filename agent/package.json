@@ -1,20 +1,22 @@
 {
   "name": "pocket-terminal-agent",
-  "version": "3.0.0",
+  "version": "4.0.0",
   "private": true,
-  "description": "Runs on your Mac. Connects out to your relay and gives it a shell.",
+  "description": "Runs on your Mac. Lets your phone use this Mac's terminal directly (P2P), even with the lid closed.",
   "main": "agent.js",
   "scripts": {
     "start": "node agent.js",
-    "setup": "node setup.js secrets",
-    "postinstall": "node -e \"try{require('fs').chmodSync(require.resolve('node-pty/package.json').replace('package.json','prebuilds/'+process.platform+'-'+process.arch+'/spawn-helper'),0o755)}catch(e){}\"",
-    "test": "node test/power.test.js"
+    "pair": "node pair.js",
+    "test": "node test/power.test.js && node ../test/crypto-board.test.js",
+    "postinstall": "node -e \"try{require('fs').chmodSync(require.resolve('node-pty/package.json').replace('package.json','prebuilds/'+process.platform+'-'+process.arch+'/spawn-helper'),0o755)}catch(e){}\""
   },
   "dependencies": {
+    "node-datachannel": "0.33.4",
     "node-pty": "1.1.0",
+    "qrcode-terminal": "0.12.0",
     "ws": "8.22.0"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=18.20"
   }
 }

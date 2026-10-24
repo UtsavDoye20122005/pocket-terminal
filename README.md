@@ -1,185 +1,151 @@
-# Pocket Terminal
+# 📱 Pocket Terminal
 
-Your Mac's terminal on your phone, from any Wi-Fi or mobile data, even with the lid closed,
-using as little battery as possible. All the code is yours.
+**Your Mac's terminal on your phone, from anywhere, even with the lid closed.**
+Phone and Mac connect **directly** (peer-to-peer) and everything is **end-to-end encrypted**.
+No server to host, no account, no subscription. Free.
 
 ```
- 📱 phone (browser)  ──https──▶  🖥️ your Oracle server (relay)  ◀──https──  💻 Mac (agent + power brain)
+📱 phone  ══════ direct, encrypted (WebRTC) ══════  💻 Mac, lid closed
+     ╲                                               ╱
+      ╲── one encrypted "hello" via a free board ───╱   (only to find each other)
 ```
 
-## What it does
+<p align="center">
+  <img src="docs/screenshots/connected.png" width="30%" alt="Connected directly">
+  <img src="docs/screenshots/asleep.png" width="30%" alt="Mac asleep, check-in countdown">
+  <img src="docs/screenshots/commands.png" width="30%" alt="Command ran after the Mac woke up">
+</p>
 
-| | |
+- **Live terminal**: real zsh, colours, Ctrl/Esc/arrow keys, tab completion.
+- **Any network**: phone on mobile data, Mac on any Wi-Fi. No router settings.
+- **Lid closed**: on charger it's instant. On battery the Mac sleeps and wakes every
+  1–5 minutes to run what you sent. Battery use stays close to normal sleep.
+- **End-to-end encrypted**: the board in the middle only ever sees scrambled text.
+- **★ Snippets**: one-tap saved commands.
+- **Commands while away**: send a command, get the output back, even if the Mac was asleep.
+- **Battery-safe**: it never stays awake below 20% and stops waking below 10%.
+- **PIN-locked phone app**: installs to your home screen like a normal app.
+
+---
+
+## How it works (simple version)
+
+1. **Pairing (once):** your Mac makes a secret key and shows it as a QR code. Your phone scans
+   it. Now both have the same key. Nobody else ever sees it.
+2. **Finding each other:** both devices use a free public message board
+   ([ntfy.sh](https://ntfy.sh)) as a mailbox. The mailbox name and every note in it are
+   derived from your key and encrypted with it, so to anyone else it's random gibberish.
+3. **Direct link:** the phone posts "here's how to reach me", the Mac replies with its own
+   details, and both knock on each other at the same moment. Routers let that through
+   ("hole punching", the same trick video calls use). From then on, everything goes
+   **straight phone ⇄ Mac**.
+4. **If a network blocks direct links:** commands still work as encrypted notes through the board.
+   That's a few seconds slower, but it works anywhere normal browsing works.
+5. **Lid closed:** a small "power brain" keeps the Mac awake on charger. On battery it lets the
+   Mac sleep, sets a wake-up alarm, checks the mailbox for a few seconds, then sleeps again.
+
+## Quick start (about 5 minutes)
+
+**You need:** a Mac (Apple Silicon or Intel) with [Node.js 18.20+](https://nodejs.org), and an
+iPhone or Android phone.
+
+**1. Fork this repo and turn on GitHub Pages** (your own copy of the phone app; see why in [SECURITY.md](SECURITY.md))
+- Click **Fork** on GitHub.
+- In your fork: **Settings → Pages → Build and deployment → Deploy from a branch →**
+  Branch **main**, folder **/docs** → **Save**.
+- After about a minute, your app is live at `https://<your-username>.github.io/pocket-terminal/`.
+
+**2. Install on your Mac** (Terminal):
+```bash
+git clone https://github.com/<your-username>/pocket-terminal.git
+cd pocket-terminal/agent && bash install.sh
+```
+It asks for your Mac password **once** (so it can manage sleep), then shows a **QR code**.
+
+**3. Pair your phone**
+- Scan the QR code with your phone's camera.
+- Choose an app **PIN**.
+- Tap **Share → Add to Home Screen**.
+
+**4. Use it.** Open the app and you'll see `● YourMac · direct 🔒`. Type away.
+
+## Lid closed and battery
+
+| Mac state | Your command runs |
 |---|---|
-| **Live terminal** | Real zsh on your Mac, in your phone's browser. Extra keys: Esc, Tab, Ctrl, Alt, arrows, ^C, ^R, Paste. |
-| **Works anywhere** | Mac and phone can be on different Wi-Fi or mobile data. Both dial out to your server. |
-| **Lid closed, on charger** | Stays reachable. Instant. No battery used. |
-| **Lid closed, on battery** | Really sleeps to save battery. Wakes every 5 minutes (you can change it), runs anything you queued, sleeps again. |
-| **Stays awake for you** | While your phone has the terminal open, or you typed in the last 5 min, or a job is running. |
-| **Never kills your battery** | Below 20% it stops staying awake. Below 10% it stops waking up at all. |
-| **★ Snippets** | One-tap saved commands. If the Mac is asleep, they go to the queue. |
-| **Queue** | Commands that run at the next check-in, with the output saved for you. |
-| **Notifications** | "✅ job done", "Your Mac is awake". |
-| **Power controls on the phone** | See battery % and why it's awake. Change check-in time, battery floor, Saver/Instant. |
-| **Auto-update** | Change code on GitHub → your server updates itself within 10 minutes. |
+| On charger, lid closed | **Instantly** |
+| On battery, you used it in the last 30 min | Within **~1 min** |
+| On battery, idle for hours | Within **~5 min** (adjustable) |
+| On battery, *Instant* mode on | **Instantly** (uses more battery) |
+| Battery below 10% | Waits until you charge |
 
-## How the battery saving works
+Change all of this in the app: **☰ → Power**. Each quick check-in keeps the Mac awake about
+6 seconds. My rough estimate is a few percent of battery overnight. Check
+`~/.pocket-terminal/agent.log` for your real numbers.
 
+## Honest limits
+
+- **The Mac must be on and online.** It can be asleep, just not shut down and not out of battery.
+- **The message board is a free public service** ([ntfy.sh](https://ntfy.sh)). It only carries
+  the encrypted "hellos" and backup commands, never your live terminal. It has a free daily
+  message limit, which is plenty for normal use. For heavy use, add your own board (see Advanced).
+- **Some strict networks block direct links** (some offices, some mobile carriers on IPv4).
+  Then you get the backup route: commands work, the live terminal doesn't.
+- **Mac only** for now. The phone side is any modern browser.
+- **Quick check-ins with the lid closed need Wi-Fi to reconnect during a "dark wake".** Most Macs do
+  this. If yours doesn't, use Instant mode on battery, or keep it on charger.
+
+## Notifications (optional)
+Install the free **ntfy** app ([iOS](https://apps.apple.com/app/ntfy/id1625396347) /
+[Android](https://play.google.com/store/apps/details?id=io.heckel.ntfy)) and subscribe to the
+topic shown in **☰ → Settings → Notifications**. You'll get "Command finished ✅" pings
+(content-free: never your command or output).
+
+## Everyday commands (on the Mac)
+
+| What | Command (inside `pocket-terminal/agent`) |
+|---|---|
+| Show the QR code again | `node pair.js` |
+| Lock out every paired phone (new key) | `node pair.js --new` then restart the agent |
+| Restart the agent | `launchctl kickstart -k gui/$(id -u)/com.pocketterminal.agent` |
+| See the log | `tail -f ~/.pocket-terminal/agent.log` |
+| Uninstall | `bash uninstall.sh` (add `--purge` to delete the key) |
+
+## Advanced
+- **Your own message board** (no shared service at all): run [ntfy](https://docs.ntfy.sh/install/)
+  anywhere, then `node pair.js --board https://ntfy.your-domain.com` and re-pair. You can list
+  several boards: notes go to all of them, so if one is down the others still work.
+- **TURN server** for networks that block all direct links: add it to `~/.pocket-terminal/direct.json`
+  as `"iceServers": ["stun:stun.l.google.com:19302", "turn:user:pass@your.turn.host:3478"]`.
+- **Relay mode** (always-on server in the middle, web-push notifications): see [`relay/`](relay/).
+
+## Project layout
 ```
-           on charger ──────────────▶ AWAKE (lid closed is fine)
-                │
-           on battery
-                │
-   phone open / typing / job? ──yes─▶ AWAKE
-                │ no
-                ▼
-   set alarm (+1 to 5 min) ─▶ SLEEP ─▶ alarm wakes it ─▶ connect, run queue (≈6 s if empty) ─┐
-                ▲                                                                  │
-                └──────────────────────── nothing to do ◀──────────────────────────┘
+agent/            runs on your Mac
+  agent.js          starts everything
+  direct.js         P2P link + encrypted mailbox (WebRTC via node-datachannel)
+  power.js          the power brain (lid-closed + battery rules)
+  lib/crypto.js     end-to-end encryption (HKDF + AES-256-GCM)
+  lib/board.js      message-board client (ntfy protocol)
+  lib/core.js       the terminal + one-off commands
+  pair.js           pairing QR code
+  install.sh        one-command setup
+docs/             the phone app (static files, served by GitHub Pages)
+relay/            optional self-hosted relay (advanced)
+test/             offline tests: fake board, fake Mac, real WebRTC in a browser
 ```
 
-**Check-in timing (on battery, asleep):**
-- Faster after use (on by default): every **1 min** for 30 min after you last used it, then every
-  **2 min** for 2 hours, then your setting (default **5 min**).
-- A check-in with nothing to do keeps the Mac awake only about 6 seconds, so frequent check-ins
-  stay cheap. Rough guess: 2–5% battery overnight. Your real numbers may differ: check
-  `~/.pocket-terminal/agent.log`.
-
----
-
-## Setup (about 30 minutes, one time)
-
-You need: a GitHub account, an Oracle Cloud account (free, needs a card for verification,
-no charge), and your Mac.
-
-### Step 1: Put the code on GitHub (browser)
-1. github.com → **New repository** → name `pocket-terminal` → **Public** (the code has no secrets;
-   your server downloads it from here) → Create.
-2. Click **uploading an existing file**. From `Claude_Work/Projects/pocket-terminal`, drag in the
-   `relay`, `agent` and `local` folders plus `README.md` and `.gitignore`. Don't upload `node_modules`.
-   Click **Commit changes**.
-
-### Step 2: Run the Mac installer (Terminal, one command)
+## Tests
+```bash
+cd agent && npm test     # power brain + encryption + boards
 ```
-cd ~/Claude_Work/Projects/pocket-terminal/agent && bash install.sh
-```
-It asks for:
-- **A phone password** (12+ characters). This is what you type on your phone.
-- **Your Mac login password**, once. This lets the agent switch lid-sleep on/off and set wake alarms.
-  It can only run those exact `pmset` commands, nothing else.
-- **Your GitHub repo URL.** Press Enter if it's `github.com/UtsavDoye20122005/pocket-terminal`.
-
-It then copies the **Oracle setup script** to your clipboard. When it asks for the server IP,
-press **Enter to skip** for now.
-
-### Step 3: Create your Oracle server (browser)
-1. Go to **cloud.oracle.com** and sign up for the free tier. For **Home Region**, pick **India South
-   (Hyderabad)** or **India West (Mumbai)**. You can't change it later.
-2. **☰ Menu → Compute → Instances → Create instance**
-   - Name: `pocket-relay`
-   - **Image:** click *Change image* → **Canonical Ubuntu 24.04**
-   - **Shape:** *Change shape* → **Ampere → VM.Standard.A1.Flex**, 1 OCPU, 6 GB (marked "Always Free").
-     If it says "out of capacity", choose **AMD → VM.Standard.E2.1.Micro** instead.
-   - **Networking:** keep "Create new virtual cloud network" and **Assign a public IPv4 address: Yes**.
-   - **SSH keys:** *Generate a key pair for me* → **Save private key** (only for emergencies).
-   - **Show advanced options → Management → Paste cloud-init script** → press **Cmd+V**.
-   - Click **Create**.
-3. **Open the web ports.** On the instance page, click the **Subnet** link → **Security Lists** →
-   **Default Security List** → **Add Ingress Rules**:
-   - Source CIDR `0.0.0.0/0`, IP Protocol **TCP**, Destination Port **80** → Add
-   - Repeat with Destination Port **443**
-4. Copy the **Public IP address** from the instance page (like `140.238.12.34`).
-5. Wait about 5 minutes. Then open `https://140-238-12-34.sslip.io` (your IP with dashes) in your
-   browser. You should see the **Pocket Terminal** login page. 🎉
-
-### Step 4: Connect your Mac (Terminal, same command)
-```
-cd ~/Claude_Work/Projects/pocket-terminal/agent && bash install.sh
-```
-Paste the server IP when asked. It ends with **✅ All set**.
-
-### Step 5: Phone
-1. Open `https://<your-ip-with-dashes>.sslip.io` and log in.
-2. **iPhone:** Share → **Add to Home Screen**, then open it from the home screen.
-   (Needed for notifications and full screen.) **Android:** ⋮ → Install app.
-3. ☰ → **Settings → Notifications → Turn on.**
-
----
-
-## Using it
-
-- **☰ menu:** Snippets, Queue, Power, Settings. **★ key** opens Snippets fast.
-- **Red dot** means the Mac is asleep. The banner shows the countdown to the next check-in. Keep the
-  page open and it connects by itself, or tap **🔔 Tell me when it's awake**.
-- **Power tab:** battery %, why it's awake, and settings:
-  - *On battery: Saver / Instant.* Instant = always awake on battery (fast but uses battery).
-  - *Check in every:* 5/10/15/30 min. Shorter = faster replies, a bit more battery.
-  - *Battery floor:* below this % it won't stay awake, even with your phone open.
-  - *Awake on charger:* reachable with the lid closed while charging.
-
-## Good to know
-
-- **Heat:** lid closed + awake + heavy job in a bag = warm Mac. Idle is fine.
-- **First real test:** close the lid on battery, wait 20 min, then check `~/.pocket-terminal/agent.log`.
-  You want to see `woke up` then `connected to relay`. If it wakes but never connects, your Mac
-  isn't turning on Wi-Fi during quiet wake-ups. Then use **Instant** mode on battery, or keep it on charger.
-- **Change the phone password:** delete `~/.pocket-terminal/secrets.json`, run the installer again, and
-  make a new Oracle server with the new script (or ask Claude to help update the old one).
-- **Logs:** Mac: `~/.pocket-terminal/agent.log`. Server: Oracle → instance → Console connection, or
-  `journalctl -u pocket-relay`.
-- **Update the code:** edit on GitHub. The server pulls it within 10 minutes. On the Mac, re-download
-  the files and run the installer.
-- **Remove from Mac:** `bash agent/uninstall.sh` (puts lid-sleep back to normal).
+The full end-to-end test (`test/`) runs a fake message board, the real phone app in a headless
+browser, and the Mac agent with a simulated sleeping Mac.
 
 ## Security
+Short version: everything is end-to-end encrypted with a key only your devices have, the
+direct link is authenticated by that key, and the phone app is PIN-locked. Read
+[SECURITY.md](SECURITY.md) for the full threat model and what it does **not** protect against.
 
-- Whoever knows your phone password controls your Mac. Make it long.
-- Only a scrambled (scrypt) version of the password is stored, on the Mac and the server.
-- HTTPS everywhere (free Let's Encrypt certificate via Caddy).
-- 8 wrong passwords in 15 minutes → login locked for 15 minutes.
-- The Mac proves itself with a 64-character secret token.
-- The relay only listens inside the server. Caddy is the only door.
-- The agent can only run 4 exact `pmset` commands with admin rights, nothing else.
-- Next level: end-to-end encryption so even your server can't read your commands.
-
-## Local mode (no server: same Wi-Fi or phone hotspot)
-
-```
-cd ~/Claude_Work/Projects/pocket-terminal/local && bash install.sh
-```
-It runs the relay on the Mac itself. Your phone opens `http://<mac-name>.local:8080`. It uses plain
-http, so only use it on your own hotspot.
-
-## Files
-
-```
-pocket-terminal/
-├── agent/                     runs on your Mac
-│   ├── agent.js                  shell + connection to the relay
-│   ├── power.js                  the power brain (sleep / wake / battery rules)
-│   ├── setup.js                  secrets, Oracle script, server address
-│   ├── install.sh / uninstall.sh
-│   └── test/                     power tests with a fake Mac:  npm test
-├── relay/                     runs on your Oracle server
-│   ├── server.js                 login, message passing, queue, snippets, notifications
-│   ├── public/                   phone app (index.html, login.html, sw.js)
-│   └── deploy/oracle-cloud-init.template.sh   one-shot server setup
-└── local/                     everything-on-the-Mac mode
-```
-
-## How the pieces talk
-
-All messages are JSON over WebSockets.
-
-| From → To | Message | Meaning |
-|---|---|---|
-| phone → relay → Mac | `{t:'i', d}` | keystrokes |
-| phone → relay → Mac | `{t:'r', cols, rows}` | screen size |
-| Mac → relay → phone | `{t:'o', d}` | terminal output |
-| relay → Mac | `{t:'want', phones}` | a phone is watching: stay awake |
-| relay → Mac | `{t:'job', id, cmd}` | run a queued command |
-| relay → Mac | `{t:'settings', power}` | new power settings from your phone |
-| Mac → relay | `{t:'power', percent, onCharger, reasons, …}` | battery and why it's awake |
-| Mac → relay | `{t:'sleeping', nextWake}` | going to sleep, back at this time |
-| Mac → relay | `{t:'jobdone', id, code, out}` | job result |
-| relay → phone | `{t:'s', online, nextWake, power}` | status for the header |
+## License
+MIT. Built by [Utsav Doye](https://github.com/UtsavDoye20122005).
