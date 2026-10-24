@@ -2,12 +2,12 @@
   "name": "pocket-terminal-agent",
   "version": "4.0.0",
   "private": true,
-  "description": "Runs on your Mac. Lets your phone use this Mac's terminal directly (P2P), even with the lid closed.",
+  "description": "Runs on your Mac or Windows PC. Lets your phone use its terminal directly (P2P), even with the lid closed.",
   "main": "agent.js",
   "scripts": {
     "start": "node agent.js",
     "pair": "node pair.js",
-    "test": "node test/power.test.js && node ../test/crypto-board.test.js",
+    "test": "node test/power.test.js && node test/windows.test.js && node ../test/crypto-board.test.js",
     "postinstall": "node -e \"try{require('fs').chmodSync(require.resolve('node-pty/package.json').replace('package.json','prebuilds/'+process.platform+'-'+process.arch+'/spawn-helper'),0o755)}catch(e){}\""
   },
   "dependencies": {

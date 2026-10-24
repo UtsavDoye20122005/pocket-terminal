@@ -10,7 +10,14 @@ const pty = require('node-pty');
 const BUFFER_LIMIT = 256 * 1024;
 const JOB_TIMEOUT_MS = 10 * 60e3;
 const JOB_OUTPUT_LIMIT = 64 * 1024;
-const SHELL = process.env.SHELL || (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash');
+const WIN = process.platform === 'win32';
+// Terminal: zsh/bash on Mac/Linux, PowerShell on Windows (set POCKET_SHELL to change, e.g. pwsh.exe or cmd.exe).
+const SHELL = process.env.POCKET_SHELL || (WIN ? 'powershell.exe' : process.env.SHELL || (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash'));
+const SHELL_ARGS = WIN ? ['-NoLogo'] : ['-l'];
+// One-off commands: run through the same shell so they behave like typing them.
+const jobArgs = (cmd) => WIN
+  ? (/cmd(\.exe)?$/i.test(SHELL) ? ['/d', '/s', '/c', cmd] : ['-NoProfile', '-NonInteractive', '-Command', cmd])
+  : ['-lc', cmd];
 
 function createCore({ log, power }) {
   let term = null;
@@ -23,7 +30,7 @@ function createCore({ log, power }) {
 
   function startShell(cols = 80, rows = 24) {
     buffer = '';
-    term = pty.spawn(SHELL, ['-l'], {
+    term = pty.spawn(SHELL, SHELL_ARGS, {
       name: 'xterm-256color', cols, rows, cwd: os.homedir(),
       env: { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor', POCKET_TERMINAL: '1' },
     });
@@ -47,7 +54,7 @@ function createCore({ log, power }) {
     log(`command ${id} started`); // the command text itself is never logged
     running++; power && power.setJobs(running);
     let out = '';
-    const child = spawn(SHELL, ['-lc', cmd], { cwd: os.homedir(), env: process.env });
+    const child = spawn(SHELL, jobArgs(cmd), { cwd: os.homedir(), env: process.env, windowsHide: true });
     const add = (d) => { out += d; if (out.length > JOB_OUTPUT_LIMIT) out = out.slice(-JOB_OUTPUT_LIMIT); };
     child.stdout.on('data', add); child.stderr.on('data', add);
     const timer = setTimeout(() => { add('\n[stopped after 10 minutes]\n'); child.kill('SIGKILL'); }, JOB_TIMEOUT_MS);

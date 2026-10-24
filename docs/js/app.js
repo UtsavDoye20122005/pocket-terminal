@@ -34,7 +34,7 @@ async function boot() {
   const h = new URLSearchParams(location.hash.slice(1));
   if (h.get('pair')) {
     const boards = (h.get('boards') || '').split(',').filter((u) => /^https:\/\//.test(u) || /^http:\/\/(127\.0\.0\.1|localhost)[:/]/.test(u));
-    pendingPair = { secret: h.get('pair'), name: (h.get('name') || 'your Mac').slice(0, 40), boards: boards.length ? boards : DEFAULT_BOARDS };
+    pendingPair = { secret: h.get('pair'), name: (h.get('name') || 'your computer').slice(0, 40), boards: boards.length ? boards : DEFAULT_BOARDS };
     history.replaceState(null, '', location.pathname + location.search); // remove the secret from the address bar
     $('pairName').textContent = pendingPair.name;
     show('gate-pair'); return;
@@ -52,7 +52,7 @@ $('pairForm').onsubmit = async (e) => {
   const a = $('pin1').value, b = $('pin2').value;
   if (a.length < 6) return ($('pairErr').textContent = 'Use at least 6 digits.');
   if (a !== b) return ($('pairErr').textContent = "PINs don't match.");
-  let keys; try { keys = await derive(pendingPair.secret); } catch { return ($('pairErr').textContent = 'This pairing link is broken. Make a new QR on your Mac.'); }
+  let keys; try { keys = await derive(pendingPair.secret); } catch { return ($('pairErr').textContent = 'This pairing link is broken. Make a new QR on your computer.'); }
   const locked = await lockSecret(pendingPair.secret, a);
   store.set('vault', { ...locked, name: pendingPair.name, boards: pendingPair.boards, topic: keys.topic });
   store.set('fails', 0); store.del('jobs');
@@ -199,7 +199,7 @@ function until(t) { const s = Math.round((t - Date.now()) / 1000); if (s <= 0) r
 
 function paint() {
   if (!term) return;
-  const name = mac.name || 'your Mac';
+  const name = mac.name || 'your computer';
   const p = livePower || mac.power;
   const nci = nextCheckIn();
   let dot = 'off', status = '', banner = null;
@@ -288,7 +288,7 @@ function renderJobs() {
   $('qn').textContent = jobs.filter((j) => j.status === 'waiting' || j.status === 'running').length || '';
   $('jobs').innerHTML = jobs.length ? jobs.map((j) => {
     const tag = j.status === 'done' ? (j.code === 0 ? '<span class="tag done">done</span>' : `<span class="tag fail">exit ${esc(j.code)}</span>`)
-      : j.status === 'running' ? '<span class="tag running">running</span>' : j.status === 'error' ? '<span class="tag fail">not sent</span>' : '<span class="tag">waiting for Mac</span>';
+      : j.status === 'running' ? '<span class="tag running">running</span>' : j.status === 'error' ? '<span class="tag fail">not sent</span>' : '<span class="tag">waiting for computer</span>';
     const out = j.status === 'done' || j.status === 'error' ? `<pre>${esc(j.out) || '(no output)'}</pre>` : '';
     return `<div class="card"><div class="top"><code>${esc(j.cmd)}</code>${tag}</div>${out}<div class="meta"><span>sent ${ago(j.created)}${j.finished ? ' · finished ' + ago(j.finished) : ''}</span><button class="x" data-del="${esc(j.cid)}">remove</button></div></div>`;
   }).join('') : '<div class="empty">No commands yet.</div>';
@@ -310,7 +310,7 @@ function paintPower(p, nci) {
   $('pBatt').textContent = p && p.percent != null ? `${p.percent}%${p.onCharger ? ' ⚡' : ''}` : '–';
   $('pState').textContent = linkState === 'direct' ? 'Awake' : mac.state === 'sleeping' ? 'Asleep' : '–';
   $('pNext').textContent = linkState === 'direct' ? '–' : nci ? until(nci) : '–';
-  $('pWhy').textContent = livePower && linkState === 'direct' ? (livePower.reasons?.length ? 'Staying awake because ' + livePower.reasons.map((r) => reasonText[r] || r).join(', ') + '.' : 'Free to sleep when idle.') : p ? 'Settings you change here reach the Mac at its next check-in.' : 'Power info appears after the Mac connects once.';
+  $('pWhy').textContent = livePower && linkState === 'direct' ? (livePower.reasons?.length ? 'Staying awake because ' + livePower.reasons.map((r) => reasonText[r] || r).join(', ') + '.' : 'Free to sleep when idle.') : p ? 'Settings you change here reach the computer at its next check-in.' : 'Power info appears after the computer connects once.';
   document.querySelectorAll('[data-set]').forEach((seg) => seg.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.v === String(s[seg.dataset.set]))));
 }
 
@@ -363,7 +363,7 @@ function setupUi() {
     paint();
     try {
       if (dc && dc.readyState === 'open') { sendTerm({ t: 'settings', power: { [key]: v } }); $('pNote').textContent = 'Saved.'; }
-      else { await post('settings', { power: { [key]: v } }); $('pNote').textContent = 'Saved. The Mac picks it up at its next check-in.'; }
+      else { await post('settings', { power: { [key]: v } }); $('pNote').textContent = 'Saved. The computer picks it up at its next check-in.'; }
     } catch (e) { $('pNote').textContent = e.message; }
   }));
 

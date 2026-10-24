@@ -1,6 +1,6 @@
 # 📱 Pocket Terminal
 
-**Your Mac's terminal on your phone, from anywhere, even with the lid closed.**
+**Your Mac's or Windows PC's terminal on your phone, from anywhere, even with the lid closed.**
 Phone and Mac connect **directly** (peer-to-peer) and everything is **end-to-end encrypted**.
 No server to host, no account, no subscription. Free.
 
@@ -46,8 +46,8 @@ No server to host, no account, no subscription. Free.
 
 ## Quick start (about 5 minutes)
 
-**You need:** a Mac (Apple Silicon or Intel) with [Node.js 18.20+](https://nodejs.org), and an
-iPhone or Android phone.
+**You need:** a Mac (Apple Silicon or Intel) **or** a Windows 10/11 PC, with
+[Node.js 18.20+](https://nodejs.org), and an iPhone or Android phone.
 
 **1. Fork this repo and turn on GitHub Pages** (your own copy of the phone app; see why in [SECURITY.md](SECURITY.md))
 - Click **Fork** on GitHub.
@@ -55,12 +55,22 @@ iPhone or Android phone.
   Branch **main**, folder **/docs** → **Save**.
 - After about a minute, your app is live at `https://<your-username>.github.io/pocket-terminal/`.
 
-**2. Install on your Mac** (Terminal):
+**2. Install on your computer**
+
+*Mac* (Terminal):
 ```bash
 git clone https://github.com/<your-username>/pocket-terminal.git
 cd pocket-terminal/agent && bash install.sh
 ```
 It asks for your Mac password **once** (so it can manage sleep), then shows a **QR code**.
+
+*Windows* (PowerShell, no admin needed):
+```powershell
+git clone https://github.com/<your-username>/pocket-terminal.git
+cd pocket-terminal\agent; powershell -ExecutionPolicy Bypass -File install.ps1
+```
+It starts the agent at every sign-in (hidden) and shows a **QR code**. Your phone gets
+**PowerShell** (set the `POCKET_SHELL` environment variable to `cmd.exe` or `pwsh.exe` to change it).
 
 **3. Pair your phone**
 - Scan the QR code with your phone's camera.
@@ -91,7 +101,12 @@ Change all of this in the app: **☰ → Power**. Each quick check-in keeps the 
   message limit, which is plenty for normal use. For heavy use, add your own board (see Advanced).
 - **Some strict networks block direct links** (some offices, some mobile carriers on IPv4).
   Then you get the backup route: commands work, the live terminal doesn't.
-- **Mac only** for now. The phone side is any modern browser.
+- **Windows is newer than macOS support (beta).** The live terminal, commands and lid-closed-on-charger
+  work the same. Windows can't report whether the lid is closed, so on battery it only puts the PC to
+  sleep after **10 minutes with no keyboard/mouse use**. Many newer laptops use "Modern Standby",
+  where wake-up alarms may not fire on battery. The installer tells you if yours does. Then use Instant
+  mode on battery, or keep it plugged in.
+- **Linux** runs the agent too (great for servers): live terminal and commands, no power brain.
 - **Quick check-ins with the lid closed need Wi-Fi to reconnect during a "dark wake".** Most Macs do
   this. If yours doesn't, use Instant mode on battery, or keep it on charger.
 
@@ -109,7 +124,9 @@ topic shown in **☰ → Settings → Notifications**. You'll get "Command finis
 | Lock out every paired phone (new key) | `node pair.js --new` then restart the agent |
 | Restart the agent | `launchctl kickstart -k gui/$(id -u)/com.pocketterminal.agent` |
 | See the log | `tail -f ~/.pocket-terminal/agent.log` |
-| Uninstall | `bash uninstall.sh` (add `--purge` to delete the key) |
+| Uninstall (Mac) | `bash uninstall.sh` (add `--purge` to delete the key) |
+| Uninstall (Windows) | `powershell -ExecutionPolicy Bypass -File uninstall.ps1` (add `-Purge`) |
+| Log (Windows) | `Get-Content -Wait $HOME\.pocket-terminal\agent.log` |
 
 ## Advanced
 - **Your own message board** (no shared service at all): run [ntfy](https://docs.ntfy.sh/install/)
@@ -121,15 +138,17 @@ topic shown in **☰ → Settings → Notifications**. You'll get "Command finis
 
 ## Project layout
 ```
-agent/            runs on your Mac
+agent/            runs on your Mac or Windows PC
   agent.js          starts everything
   direct.js         P2P link + encrypted mailbox (WebRTC via node-datachannel)
   power.js          the power brain (lid-closed + battery rules)
+  platform/         the sleep/wake switches for macOS and Windows
   lib/crypto.js     end-to-end encryption (HKDF + AES-256-GCM)
   lib/board.js      message-board client (ntfy protocol)
   lib/core.js       the terminal + one-off commands
   pair.js           pairing QR code
-  install.sh        one-command setup
+  install.sh        one-command setup (Mac)
+  install.ps1       one-command setup (Windows)
 docs/             the phone app (static files, served by GitHub Pages)
 relay/            optional self-hosted relay (advanced)
 test/             offline tests: fake board, fake Mac, real WebRTC in a browser

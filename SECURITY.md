@@ -15,6 +15,7 @@ that access is protected, and where the limits are.
 | **Phone at rest** | The pairing key is stored encrypted with your PIN (PBKDF2-SHA256, 310k rounds, AES-GCM). After 10 wrong PINs the phone forgets the key. An "unlocked for 12 h" session keeps only a non-extractable WebCrypto key. |
 | **Phone app** | Static files with a strict Content-Security-Policy: no inline scripts, no third-party scripts, and no analytics. |
 | **Mac admin rights** | The agent can run exactly 4 `pmset` commands without a password (sleep control). `sudo` for anything else still asks for your password. |
+| **Windows** | No admin rights at all. The agent changes only your own power plan's lid-close action (restored when it stops or is uninstalled) and one wake-up task in Task Scheduler. |
 | **Logs** | Command text and output are never written to the agent log. The log file is only readable by you. |
 | **Notifications** | ntfy pings are content-free ("Command finished ✅"). |
 | **Revocation** | `node pair.js --new` makes a new key. Every phone paired before is locked out immediately. |

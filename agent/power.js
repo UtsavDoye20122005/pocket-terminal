@@ -1,4 +1,4 @@
-// Power brain: decides when the Mac stays awake and when it sleeps.
+// Power brain: decides when the computer stays awake and when it sleeps (macOS + Windows).
 //
 // The goal: lid closed but still reachable, using as little battery as possible.
 //
@@ -9,14 +9,7 @@
 //                           check in with the relay, run queued jobs, sleep again.
 //   Battery very low      → sleep and stop the alarms, so the battery never dies.
 //
-// macOS tools used (all built in):
-//   pmset -g batt                 read battery level and charger state
-//   ioreg AppleClamshellState     is the lid closed?
-//   pmset -a disablesleep 0|1     1 = closing the lid does NOT sleep the Mac (needs sudo)
-//   pmset schedule wake "<date>"  alarm clock that wakes a sleeping Mac (needs sudo)
-//   pmset sleepnow                go to sleep right now
-
-const { execFile } = require('child_process');
+// The actual on/off switches live in platform/mac.js and platform/windows.js.
 
 const DEFAULTS = {
   enabled: true,
@@ -29,39 +22,13 @@ const DEFAULTS = {
   stopAlarmsBelow: 10,    // below this %: stop waking up at all
 };
 
-function run(cmd, args, timeout = 10e3) {
-  return new Promise((resolve) => {
-    execFile(cmd, args, { timeout }, (err, stdout, stderr) => resolve({ ok: !err, out: String(stdout || ''), err: String(stderr || err || '') }));
-  });
-}
-
-function parseBattery(text) {
-  const onCharger = /'AC Power'/.test(text);
-  const m = text.match(/(\d+)%;\s*([a-zA-Z ]+?);/);
-  return { percent: m ? parseInt(m[1], 10) : null, onCharger, state: m ? m[2].trim() : (onCharger ? 'AC' : 'unknown') };
-}
-
-function pmsetDate(d) {
-  const p = (n) => String(n).padStart(2, '0');
-  return `${p(d.getMonth() + 1)}/${p(d.getDate())}/${String(d.getFullYear()).slice(2)} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
-}
-
 class PowerBrain {
   // hooks: { log, onStatus(status), onWake() }
   // sys:   swap in fake commands for testing
   constructor(settings, hooks, sys = {}) {
     this.s = { ...DEFAULTS, ...(settings || {}) };
     this.hooks = hooks;
-    this.sys = {
-      battery: async () => parseBattery((await run('/usr/bin/pmset', ['-g', 'batt'])).out),
-      lidClosed: async () => /"AppleClamshellState" = Yes/.test((await run('/usr/sbin/ioreg', ['-r', '-k', 'AppleClamshellState', '-d', '1'])).out),
-      setNoSleep: async (on) => run('/usr/bin/sudo', ['-n', '/usr/bin/pmset', '-a', 'disablesleep', on ? '1' : '0']),
-      scheduleWake: async (date) => run('/usr/bin/sudo', ['-n', '/usr/bin/pmset', 'schedule', 'wake', pmsetDate(date)]),
-      cancelWake: async (date) => run('/usr/bin/sudo', ['-n', '/usr/bin/pmset', 'schedule', 'cancel', 'wake', pmsetDate(date)]),
-      sleepNow: async () => run('/usr/bin/pmset', ['sleepnow']),
-      now: () => Date.now(),
-      ...sys,
-    };
+    this.sys = { ...require('./platform').sys(), now: () => Date.now(), ...sys };
     this.noSleep = null;        // what we last told pmset
     this.wantedByPhone = false; // a phone has the terminal open
     this.jobsRunning = 0;
@@ -197,4 +164,5 @@ class PowerBrain {
   }
 }
 
+const { parseBattery, pmsetDate } = require('./platform/mac');
 module.exports = { PowerBrain, parseBattery, pmsetDate, DEFAULTS };

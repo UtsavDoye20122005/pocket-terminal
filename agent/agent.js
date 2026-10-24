@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Pocket Terminal agent. Runs on your Mac (started at login by install.sh).
+// Pocket Terminal agent. Runs on your Mac or Windows PC (started at login by the installer).
 //
 //   Direct mode (default): phone ⇄ Mac peer-to-peer, introduced through a free public
 //                          message board. Nothing for you to host. See direct.js.
@@ -31,7 +31,7 @@ function main() {
   // POWER_SIM lets tests swap in a fake Mac (see test/sim-mac.js).
   const sim = process.env.POWER_SIM ? require(path.resolve(process.env.POWER_SIM)) : null;
   let power = null;
-  if ((process.platform === 'darwin' || sim) && process.env.POWER_BRAIN !== '0') {
+  if ((require('./platform').supported() || sim) && process.env.POWER_BRAIN !== '0') {
     power = new PowerBrain(readJson('power.json') || {}, {
       log,
       onStatus: (s) => transport && transport.onPower(s),

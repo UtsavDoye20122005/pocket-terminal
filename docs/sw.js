@@ -1,6 +1,6 @@
 // Offline cache for the app's own files, so it opens instantly from the home screen.
 // Bump VERSION on every release so phones pick up the new code.
-const VERSION = 'pt-v4.0.0';
+const VERSION = 'pt-v4.1.0';
 const FILES = ['./', 'index.html', 'js/app.js', 'js/crypto.js', 'js/board.js', 'vendor/xterm.js', 'vendor/xterm.css', 'vendor/addon-fit.js', 'manifest.json', 'icon.svg', 'icon.png'];
 self.addEventListener('install', (e) => e.waitUntil(caches.open(VERSION).then((c) => c.addAll(FILES)).then(() => self.skipWaiting())));
 self.addEventListener('activate', (e) => e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== VERSION).map((k) => caches.delete(k)))).then(() => self.clients.claim())));
