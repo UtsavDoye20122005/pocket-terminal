@@ -9,7 +9,7 @@ const bat = parseBattery(`Now drawing from 'Battery Power'\n -InternalBattery-0 
 assert.deepStrictEqual([bat.percent, bat.onCharger], [54, false]);
 assert.strictEqual(pmsetDate(new Date(2026, 9, 22, 9, 5, 3)), '10/22/26 09:05:03');
 
-let t = 1_000_000;
+let t = 100 * 3600e3; // start the fake clock far from 0 ("never used")
 const calls = [];
 const mac = { percent: 80, onCharger: true, lid: true };
 const sys = {
@@ -34,14 +34,16 @@ const last = () => calls.slice(-3).join(' | ');
   console.log('✓ on charger: stays awake with lid closed');
 
   // 2. Unplug while lid closed. Still "checking in" right after start, then sleeps.
-  mac.onCharger = false; brain.wokeAt = t; brain.firstContact = true;
-  await step(10e3); assert.ok(!calls.includes('SLEEP'), 'should wait for check-in window');
-  await step(40e3);
-  assert.strictEqual(last(), 'nosleep 0 | alarm +15m | SLEEP');
-  console.log('✓ on battery + idle: sets 15 min alarm and sleeps');
+  mac.onCharger = false; brain.wokeAt = t; brain.firstContact = false;
+  await step(10e3); assert.ok(!calls.includes('SLEEP'), 'should wait to reach the relay');
+  brain.firstContact = true; brain.connectedAt = t; // relay reached
+  await step(3e3); assert.ok(!calls.includes('SLEEP'), 'gives the relay 5 s to send work');
+  await step(3e3);
+  assert.strictEqual(last(), 'nosleep 0 | alarm +5m | SLEEP');
+  console.log('✓ on battery + idle: quick check-in (5 s after connecting), 5 min alarm, sleeps');
 
   // 3. Wakes from the alarm (big clock jump) → onWake, stays awake to check in
-  calls.length = 0; brain.lastTick = t; t += 15 * 60e3; brain.sleeping = false; await brain.tick();
+  calls.length = 0; brain.lastTick = t; t += 5 * 60e3; brain.sleeping = false; await brain.tick();
   assert.strictEqual(woke, 1); assert.ok(calls.includes('nosleep 1'));
   console.log('✓ wake detected, stays awake to check in');
 
@@ -83,7 +85,15 @@ const last = () => calls.slice(-3).join(' | ');
   assert.ok(brain.reasons().includes('instant mode')); assert.ok(!calls.includes('SLEEP'));
   console.log('✓ instant mode: stays awake on battery');
 
-  // 11. stop() never leaves the Mac stuck awake
+  // 11. Smart check-ins: faster right after you used it
+  brain.update({ batteryMode: 'saver' });
+  brain.activity();                      assert.strictEqual(brain.nextCheckInMinutes(), 1);
+  t += 45 * 60e3;                        assert.strictEqual(brain.nextCheckInMinutes(), 2);
+  t += 3 * 3600e3;                       assert.strictEqual(brain.nextCheckInMinutes(), 5);
+  brain.update({ smartCheckIn: false }); brain.activity(); assert.strictEqual(brain.nextCheckInMinutes(), 5);
+  console.log('✓ smart check-ins: 1 min after use, then 2 min, then your setting');
+
+  // 12. stop() never leaves the Mac stuck awake
   await brain.stop(); assert.strictEqual(calls.at(-1), 'nosleep 0');
   console.log('✓ stopping the agent restores normal sleep');
   console.log('\nAll power tests passed.');

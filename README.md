@@ -14,7 +14,7 @@ using as little battery as possible. All the code is yours.
 | **Live terminal** | Real zsh on your Mac, in your phone's browser. Extra keys: Esc, Tab, Ctrl, Alt, arrows, ^C, ^R, Paste. |
 | **Works anywhere** | Mac and phone can be on different Wi-Fi or mobile data. Both dial out to your server. |
 | **Lid closed, on charger** | Stays reachable. Instant. No battery used. |
-| **Lid closed, on battery** | Really sleeps to save battery. Wakes every few minutes (you choose), runs anything you queued, sleeps again. |
+| **Lid closed, on battery** | Really sleeps to save battery. Wakes every 5 minutes (you can change it), runs anything you queued, sleeps again. |
 | **Stays awake for you** | While your phone has the terminal open, or you typed in the last 5 min, or a job is running. |
 | **Never kills your battery** | Below 20% it stops staying awake. Below 10% it stops waking up at all. |
 | **★ Snippets** | One-tap saved commands. If the Mac is asleep, they go to the queue. |
@@ -33,14 +33,17 @@ using as little battery as possible. All the code is yours.
    phone open / typing / job? ──yes─▶ AWAKE
                 │ no
                 ▼
-   set alarm (+15 min) ─▶ SLEEP ─▶ alarm wakes it ─▶ connect, run queue (≈45 s) ─┐
+   set alarm (+1 to 5 min) ─▶ SLEEP ─▶ alarm wakes it ─▶ connect, run queue (≈6 s if empty) ─┐
                 ▲                                                                  │
                 └──────────────────────── nothing to do ◀──────────────────────────┘
 ```
 
-Each check-in costs about 45 seconds awake. That's roughly 1–3% battery overnight with
-15-minute check-ins, close to normal sleep. Your Mac's real numbers may differ: check
-`~/.pocket-terminal/agent.log`.
+**Check-in timing (on battery, asleep):**
+- Faster after use (on by default): every **1 min** for 30 min after you last used it, then every
+  **2 min** for 2 hours, then your setting (default **5 min**).
+- A check-in with nothing to do keeps the Mac awake only about 6 seconds, so frequent check-ins
+  stay cheap. Rough guess: 2–5% battery overnight. Your real numbers may differ: check
+  `~/.pocket-terminal/agent.log`.
 
 ---
 
@@ -180,4 +183,3 @@ All messages are JSON over WebSockets.
 | Mac → relay | `{t:'sleeping', nextWake}` | going to sleep, back at this time |
 | Mac → relay | `{t:'jobdone', id, code, out}` | job result |
 | relay → phone | `{t:'s', online, nextWake, power}` | status for the header |
-# pocket-terminal

@@ -134,10 +134,10 @@ function connect(cfg) {
       } else if (m.t === 'job' && typeof m.cmd === 'string') runJob(m.id, m.cmd);
       else if (m.t === 'want') power && power.setPhoneWanting(m.phones > 0);
       else if (m.t === 'settings' && m.power && power) {
-        const allowed = ['enabled', 'awakeOnCharger', 'batteryMode', 'checkInMinutes', 'idleMinutes', 'minBattery', 'stopAlarmsBelow'];
+        const allowed = ['enabled', 'awakeOnCharger', 'batteryMode', 'checkInMinutes', 'smartCheckIn', 'idleMinutes', 'minBattery', 'stopAlarmsBelow'];
         const next = {};
         for (const k of allowed) if (k in m.power) next[k] = m.power[k];
-        next.checkInMinutes = Math.min(120, Math.max(3, Number(next.checkInMinutes ?? power.s.checkInMinutes)));
+        next.checkInMinutes = Math.min(120, Math.max(1, Number(next.checkInMinutes ?? power.s.checkInMinutes)));
         next.minBattery = Math.min(90, Math.max(5, Number(next.minBattery ?? power.s.minBattery)));
         power.update(next);
         savePower(power.s);
@@ -190,6 +190,9 @@ function main() {
   }
 
   connect(cfg);
+  // Free hosts like Render nap after ~15 min without web visits. While the Mac is
+  // awake, a tiny visit every 10 min keeps the relay ready (no effect on Oracle).
+  if (!/localhost|127\.0\.0\.1/.test(cfg.relay)) setInterval(() => fetch(cfg.relay + '/healthz').catch(() => {}), 10 * 60e3);
   const stop = async () => {
     try { term && term.kill(); } catch {}
     if (power) await power.stop(); // never leave the Mac stuck awake

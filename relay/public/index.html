@@ -158,7 +158,9 @@
       <div class="field"><div>On battery<small>Saver: sleeps when idle, wakes to check in.<br>Instant: always awake (uses more battery).</small></div>
         <div class="seg" data-set="batteryMode"><button data-v="saver">Saver</button><button data-v="instant">Instant</button></div></div>
       <div class="field"><div>Check in every<small>How often a sleeping Mac wakes up</small></div>
-        <div class="seg" data-set="checkInMinutes"><button data-v="5">5m</button><button data-v="10">10m</button><button data-v="15">15m</button><button data-v="30">30m</button></div></div>
+        <div class="seg" data-set="checkInMinutes"><button data-v="1">1m</button><button data-v="2">2m</button><button data-v="5">5m</button><button data-v="15">15m</button></div></div>
+      <div class="field"><div>Faster after use<small>Checks in every 1 min for 30 min after you use it, then 2 min, then the time above</small></div>
+        <div class="seg" data-set="smartCheckIn"><button data-v="true">On</button><button data-v="false">Off</button></div></div>
       <div class="field"><div>Battery floor<small>Below this, it stops staying awake</small></div>
         <div class="seg" data-set="minBattery"><button data-v="10">10%</button><button data-v="20">20%</button><button data-v="30">30%</button><button data-v="40">40%</button></div></div>
       <div class="field"><div>Awake on charger<small>Reachable with the lid closed while charging</small></div>
@@ -351,7 +353,7 @@
     $('pNext').textContent = S.online ? '–' : S.nextWake ? until(S.nextWake) : 'none';
     $('pWhy').textContent = S.online
       ? (p.reasons && p.reasons.length ? 'Staying awake because ' + p.reasons.map((r) => reasonText[r] || r).join(', ') + '.' : 'Free to sleep when idle.')
-      : 'Asleep. It wakes for a few seconds every check-in to run queued commands.';
+      : `Asleep. It wakes for a few seconds every ${p.nextCheckInMinutes || p.checkInMinutes} min to run queued commands.`;
     const s = p.settings || {};
     document.querySelectorAll('[data-set]').forEach((seg) => {
       const v = String(s[seg.dataset.set]);

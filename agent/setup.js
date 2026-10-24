@@ -71,13 +71,13 @@ async function relay() {
   const s = readJson(SECRETS);
   if (!s) { console.error('Run secrets first.'); process.exit(1); }
   const cur = readJson(AGENT);
-  const a = await ask(`Your Oracle server's public IP (like 140.238.1.2)${cur ? ` [Enter = keep ${cur.relay}]` : ' [Enter = skip for now]'}: `);
+  const a = await ask(`Your server: Oracle IP (like 140.238.1.2) or Render address (https://….onrender.com)${cur ? ` [Enter = keep ${cur.relay}]` : ' [Enter = skip for now]'}: `);
   process.stdout.write('\n');
   let url;
   if (!a) { if (!cur) { console.log('Skipped. Run the installer again once your server is up.'); process.exit(3); } url = cur.relay; }
   else if (/^\d{1,3}(\.\d{1,3}){3}$/.test(a)) url = `https://${a.replace(/\./g, '-')}.sslip.io`;
   else if (/^https?:\/\//.test(a)) url = a.replace(/\/+$/, '');
-  else { console.error('Type the IP address, like 140.238.1.2'); process.exit(1); }
+  else { console.error('Type an IP like 140.238.1.2, or a full address starting with https://'); process.exit(1); }
   writeJson(AGENT, { relay: url, token: s.agentToken });
   process.stdout.write(`Checking ${url} … `);
   try {
@@ -89,8 +89,20 @@ async function relay() {
   console.log(`RELAY=${url}`);
 }
 
+// Prints the two values to paste into Render → Environment.
+function render() {
+  const s = readJson(SECRETS);
+  if (!s) { console.error('Run the installer first (it creates your secrets).'); process.exit(1); }
+  console.log('\nAdd these two on Render → your service → Environment:\n');
+  console.log('  Key:   APP_PASSWORD_HASH');
+  console.log('  Value: ' + s.passwordHash + '\n');
+  console.log('  Key:   AGENT_TOKEN');
+  console.log('  Value: ' + s.agentToken + '\n');
+}
+
 const [cmd, arg] = process.argv.slice(2);
 if (cmd === 'secrets') secrets();
 else if (cmd === 'cloud-init') cloudInit(arg);
 else if (cmd === 'relay') relay();
+else if (cmd === 'render') render();
 else { console.log('usage: node setup.js secrets | cloud-init <github-repo-url> | relay'); process.exit(1); }
