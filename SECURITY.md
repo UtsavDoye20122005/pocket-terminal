@@ -18,6 +18,7 @@ that access is protected, and where the limits are.
 | **Windows** | No admin rights at all. The agent changes only your own power plan's lid-close action (restored when it stops or is uninstalled) and one wake-up task in Task Scheduler. |
 | **Logs** | Command text and output are never written to the agent log. The log file is only readable by you. |
 | **Notifications** | ntfy pings are content-free ("Command finished ✅"). |
+| **AI helper (optional)** | Off by default. Your own key is stored encrypted with the pairing key. Only the text you type in **Ask** is sent, directly from the phone to the provider you chose. Suggestions never run by themselves, and every one passes a local danger check that doesn't trust the AI's own label. |
 | **Revocation** | `node pair.js --new` makes a new key. Every phone paired before is locked out immediately. |
 
 ## What the message board can see

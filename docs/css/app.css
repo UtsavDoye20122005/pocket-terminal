@@ -151,3 +151,26 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--lamp); outl
 .seg button.on { background: var(--lamp); color: #231A04; font-weight: 600; }
 .note { font-size: 12px; color: var(--lamp); min-height: 16px; margin-top: 6px; }
 .toast { position: fixed; left: 50%; top: calc(60px + env(safe-area-inset-top)); transform: translateX(-50%); background: var(--panel-2); border: 1px solid var(--line); padding: 9px 16px; border-radius: 999px; font-size: 13px; z-index: 20; display: none; max-width: 90%; text-align: center; box-shadow: 0 10px 30px rgba(0, 0, 0, .4); }
+
+/* ---------- Ask: find a command / plain English → command ---------- */
+.iconbtn.ask svg { stroke: var(--lamp); }
+.chip.ask { color: var(--lamp); border-color: rgba(244, 183, 64, .35); }
+.field-in.plain { font-family: var(--sans); font-size: 15px; }
+.sub { margin: 18px 0 -2px; color: var(--muted); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+.sug .top b { flex: 1; min-width: 0; font-weight: 600; font-size: 14px; }
+.sug .ex { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+.sug .why { margin: 6px 0 0; color: var(--coral); font-size: 12px; }
+.sug .cmdedit { width: 100%; margin-top: 10px; font-size: 13px; color: var(--lamp); }
+.sug .acts { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.sug .acts .btn.danger { background: var(--coral); color: #2A0B0B; }
+.tag.warn { color: var(--lamp); background: var(--lamp-soft); }
+.btn:disabled { opacity: .55; }
+.thinking { display: flex; gap: 6px; justify-content: center; padding: 18px; }
+.thinking span { width: 7px; height: 7px; border-radius: 50%; background: var(--lamp); animation: blink 1s infinite ease-in-out; }
+.thinking span:nth-child(2) { animation-delay: .15s; } .thinking span:nth-child(3) { animation-delay: .3s; }
+@keyframes blink { 50% { opacity: .2; transform: translateY(-3px); } }
+.aiform { display: flex; flex-direction: column; gap: 8px; padding: 0 0 12px; }
+.aiform .hint { margin: 0; }
+.aiform b { color: var(--text); }
+select.field-in { appearance: none; -webkit-appearance: none; }
+#askHint { margin-top: 10px; }

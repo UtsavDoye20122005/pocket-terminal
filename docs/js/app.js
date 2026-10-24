@@ -6,6 +6,7 @@
 
 import { derive, seal, open, randomId, lockSecret, unlockSecret } from './crypto.js';
 import { Board, MAX_NOTE } from './board.js';
+import { search, riskOf, needsFill, askAi, PROVIDERS } from './helper.js';
 
 const $ = (id) => document.getElementById(id);
 const DEFAULT_BOARDS = ['https://ntfy.sh'];
@@ -140,7 +141,7 @@ function start(session) {
   mac.name = S.name;
   show('app');
   $('notifyTopic').textContent = S.notifyTopic;
-  setupTerminal(); setupUi();
+  setupTerminal(); setupUi(); loadAi();
   board = new Board(S.boards, S.topic, onNoteText, () => paint());
   board.start('12h'); // read the last 12 h: Mac status, answers to old commands
   setTimeout(() => connect(), 400);
@@ -160,6 +161,7 @@ async function onNoteText(text) {
   if (m.type === 'status') {
     if (m.ts < mac.ts) return;
     Object.assign(mac, { state: m.state, ts: m.ts, nextWake: m.nextWake, checkIn: m.checkIn, power: m.power, name: m.name || mac.name });
+    if (m.os) setOs(m.os);
     // The Mac just woke up and saw our hello: open the direct link now.
     // (If an offer is still waiting, the Mac answers that one; don't start another.)
     if (m.state === 'online' && Date.now() - m.ts < 3 * 60e3 && (!dc || dc.readyState !== 'open') && Date.now() - offerAt > 80e3) connect({ hello: false });
@@ -221,6 +223,7 @@ function wire(ch) {
     if (m.t === 'o') term.write(m.d);
     else if (m.t === 'reset') { term.reset(); if (m.d) term.write(m.d); }
     else if (m.t === 'power') { livePower = m; paint(); }
+    else if (m.t === 'hi') { if (m.os) setOs(m.os); }
     else if (m.t === 'result') gotResult(m.id, m.code, m.out);
   };
   ch.onclose = () => {
@@ -364,7 +367,7 @@ function renderSnips() {
   $('snips').innerHTML = snippets.length ? snippets.map((s) => `<div class="item snip"><button class="run" data-run="${esc(s.id)}"><b>${esc(s.name)}</b><code>${esc(s.cmd)}</code></button><button class="x" data-sdel="${esc(s.id)}">✕</button></div>`).join('') : '<div class="empty">No saved commands yet. Add one below.</div>';
 }
 function renderChips() {
-  $('chips').innerHTML = snippets.map((s) => `<button class="chip" data-run="${esc(s.id)}">${esc(s.name)}</button>`).join('') + '<button class="chip add" id="addChip">+ Save a command</button>';
+  $('chips').innerHTML = '<button class="chip ask" id="askChip">✦ Ask</button>' + snippets.map((s) => `<button class="chip" data-run="${esc(s.id)}">${esc(s.name)}</button>`).join('') + '<button class="chip add" id="addChip">+ Save a command</button>';
 }
 
 // ---------- power ----------
@@ -378,12 +381,119 @@ function paintPower(p, nci) {
   document.querySelectorAll('[data-set]').forEach((seg) => seg.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.v === String(s[seg.dataset.set]))));
 }
 
+// ---------- Ask: find a command, or turn plain English into one ----------
+let os = store.get('os', 'darwin');
+const OS_LABEL = { darwin: 'macOS', win32: 'Windows', linux: 'Linux' };
+function setOs(v) { if (!OS_LABEL[v] || v === os) return; os = v; store.set('os', v); }
+let ai = null; // { provider, model, key } (key only in memory; stored encrypted with the pairing key)
+const AI_AAD = new TextEncoder().encode('pocket-terminal/ai-key');
+async function loadAi() {
+  const a = store.get('ai'); if (!a) return paintAiInfo();
+  try {
+    const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: fromB64(a.iv), additionalData: AI_AAD }, keys.key, fromB64(a.ct));
+    ai = { provider: a.provider, model: a.model, key: new TextDecoder().decode(plain) };
+  } catch { ai = null; }
+  paintAiInfo();
+}
+const toB64 = (b) => btoa(String.fromCharCode(...new Uint8Array(b)));
+const fromB64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+async function saveAi(cfg) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: AI_AAD }, keys.key, new TextEncoder().encode(cfg.key));
+  store.set('ai', { provider: cfg.provider, model: cfg.model, iv: toB64(iv), ct: toB64(ct) });
+  ai = cfg; paintAiInfo();
+}
+function paintAiInfo() {
+  $('aiInfo').textContent = ai ? `On: ${PROVIDERS[ai.provider]?.label || ai.provider}` : 'Off. Turns plain English into commands with your own AI key.';
+  $('aiSetup').textContent = ai ? 'Change' : 'Set up';
+}
+
+let aiResults = [], aiNote = '', aiBusy = null, armed = null;
+function cmdHistory() {
+  const h = snippets.map((s) => ({ cmd: s.cmd, name: s.name, from: 'saved' }));
+  for (const j of jobs) if (!h.some((x) => x.cmd === j.cmd)) h.push({ cmd: j.cmd, from: 'recent' });
+  return h;
+}
+function sugCard(r, i, src) {
+  const risk = riskOf(r.cmd) || (r.risk && r.risk !== 'safe' ? { level: r.risk, why: '' } : null);
+  const tag = risk ? `<span class="tag ${risk.level === 'danger' ? 'fail' : 'warn'}">${risk.level === 'danger' ? 'danger' : 'careful'}</span>` : (src === 'ai' ? '<span class="tag done">safe</span>' : '');
+  const why = risk && risk.why ? `<p class="why">⚠ ${esc(risk.why[0].toUpperCase() + risk.why.slice(1))}.</p>` : '';
+  const live = dc && dc.readyState === 'open';
+  return `<div class="item sug" data-src="${src}" data-i="${i}">
+    <div class="top"><b>${esc(r.name || r.explain || 'Suggestion')}</b>${tag}</div>
+    ${r.name && r.explain ? `<p class="ex">${esc(r.explain)}</p>` : ''}${why}
+    <input class="field-in cmdedit" value="${esc(r.cmd)}" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="Command">
+    <div class="acts"><button class="btn small" data-act="run">Run</button>${live ? '<button class="btn small ghost" data-act="type">Put in terminal</button>' : ''}<button class="btn small ghost" data-act="save">Save</button></div>
+  </div>`;
+}
+function paintAsk() {
+  const q = $('askIn').value;
+  $('askGo').textContent = aiBusy ? 'Asking…' : 'Ask AI';
+  $('askGo').disabled = !!aiBusy;
+  $('askAi').innerHTML = aiBusy ? '<div class="item thinking"><span></span><span></span><span></span></div>'
+    : aiResults.map((r, i) => sugCard(r, i, 'ai')).join('') + (aiNote ? `<p class="hint">${esc(aiNote)}</p>` : '');
+  const lib = search(q, os, cmdHistory());
+  $('askLibTitle').hidden = !lib.length;
+  $('askLibTitle').textContent = aiResults.length ? 'Also matching' : 'Matches';
+  $('askLib').innerHTML = lib.map((r, i) => sugCard(r, i, 'lib')).join('') +
+    (q.trim() && !lib.length && !aiResults.length && !aiBusy ? `<div class="empty">${ai ? 'Nothing built in. Tap <b>Ask AI</b>.' : 'Nothing built in matches. Turn on the AI helper in <b>Settings</b> to ask in plain English.'}</div>` : '');
+  paintAsk.lib = lib;
+  $('askHint').textContent = q.trim() ? `Commands for ${OS_LABEL[os]}. Nothing runs until you tap Run.` : 'Say what you want in plain English, or type the part of a command you remember.';
+}
+async function doAsk() {
+  const q = $('askIn').value.trim(); if (!q) return;
+  if (!ai) { openSheet('settings'); $('aiForm').hidden = false; fillAiForm(); return toast('Add an AI key first. Groq and Gemini keys are free.'); }
+  aiBusy?.abort(); const ctl = new AbortController(); aiBusy = ctl; aiResults = []; aiNote = ''; paintAsk();
+  const timer = setTimeout(() => ctl.abort(), 25e3);
+  try { const r = await askAi(ai, q, os, ctl.signal); if (aiBusy !== ctl) return; aiResults = r.options; aiNote = r.note; }
+  catch (e) { if (aiBusy !== ctl) return; aiNote = e.name === 'AbortError' ? 'The AI took too long. Try again.' : /fetch/i.test(e.message) ? 'Could not reach the AI. Check this phone\'s internet.' : e.message; }
+  finally { clearTimeout(timer); if (aiBusy === ctl) { aiBusy = null; paintAsk(); } }
+}
+function fillAiForm() {
+  const p = ai?.provider || 'groq';
+  $('aiProvider').innerHTML = Object.entries(PROVIDERS).map(([k, v]) => `<option value="${k}"${k === p ? ' selected' : ''}>${esc(v.label)}</option>`).join('');
+  $('aiKey').value = ''; $('aiKey').placeholder = ai ? 'API key (leave empty to keep)' : 'API key';
+  $('aiModel').value = ai?.model || ''; aiHelp();
+}
+function aiHelp() { const p = PROVIDERS[$('aiProvider').value]; $('aiModel').placeholder = 'model: ' + p.model; $('aiKeyHelp').innerHTML = `Get a key at <b>${esc(p.keyUrl)}</b>.`; }
+function setupAsk() {
+  let t; $('askIn').addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => { aiResults = []; aiNote = ''; paintAsk(); }, 100); });
+  $('askForm').onsubmit = (e) => { e.preventDefault(); doAsk(); };
+  $('pane-ask').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-act]'); if (!b) return;
+    const card = b.closest('.sug'), inp = card.querySelector('.cmdedit'), cmd = inp.value.trim();
+    const src = card.dataset.src === 'ai' ? aiResults : paintAsk.lib, r = src[+card.dataset.i] || {};
+    if (!cmd) return;
+    if (needsFill(cmd) && b.dataset.act !== 'save') {
+      const m = cmd.match(/<[^<>]+>/); inp.focus(); inp.setSelectionRange(m.index, m.index + m[0].length);
+      return toast(`Fill in ${m[0]} first`);
+    }
+    if (b.dataset.act === 'save') { snippets.push({ id: randomId(), name: (r.name || r.explain || cmd).slice(0, 40), cmd }); renderSnips(); return toast('Saved. It shows as a chip now.'); }
+    if (b.dataset.act === 'type') { $('sheet').classList.remove('show'); input(cmd); term.focus(); return; }
+    const risk = riskOf(cmd);
+    if (risk?.level === 'danger' && armed !== b) { armed = b; b.textContent = 'Tap again to run'; b.classList.add('danger'); setTimeout(() => { if (armed === b) { armed = null; b.textContent = 'Run'; b.classList.remove('danger'); } }, 4000); return; }
+    armed = null;
+    if (dc && dc.readyState === 'open') { $('sheet').classList.remove('show'); input(cmd + '\r'); term.focus(); }
+    else { runCommand(cmd); openSheet('queue'); toast('Sent. It runs at the next check-in.'); }
+  });
+  $('aiSetup').onclick = () => { $('aiForm').hidden = !$('aiForm').hidden; if (!$('aiForm').hidden) fillAiForm(); };
+  $('aiProvider').onchange = aiHelp;
+  $('aiForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const provider = $('aiProvider').value, key = $('aiKey').value.trim() || (ai && ai.provider === provider ? ai.key : '');
+    if (!key) return toast('Paste your API key');
+    await saveAi({ provider, model: $('aiModel').value.trim(), key }); $('aiForm').hidden = true; toast('AI helper is on. Try it in Ask.');
+  };
+  $('aiOff').onclick = () => { store.del('ai'); ai = null; paintAiInfo(); $('aiForm').hidden = true; toast('AI helper turned off. The key was removed from this phone.'); };
+}
+
 // ---------- UI wiring ----------
 function openSheet(tab) {
   document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
   document.querySelectorAll('.pane').forEach((p) => p.classList.toggle('on', p.id === 'pane-' + tab));
   $('sheet').classList.add('show'); store.set('tab', tab);
   if (tab === 'queue') setTimeout(() => $('qcmd').focus(), 50);
+  if (tab === 'ask') { paintAsk(); setTimeout(() => $('askIn').focus(), 50); }
 }
 function setupUi() {
   document.querySelectorAll('[data-mod]').forEach((b) => { modBtn[b.dataset.mod] = b;
@@ -400,10 +510,13 @@ function setupUi() {
     };
   });
   document.querySelectorAll('#tabs button').forEach((b) => (b.onclick = () => openSheet(b.dataset.tab)));
-  $('menuBtn').onclick = () => openSheet(store.get('tab', 'queue'));
+  $('menuBtn').onclick = () => openSheet(store.get('tab', 'queue') === 'ask' ? 'queue' : store.get('tab', 'queue'));
+  $('askBtn').onclick = () => openSheet('ask');
+  setupAsk();
   $('bannerForm').onsubmit = (e) => { e.preventDefault(); const c = $('bannerCmd').value; if (!c.trim()) return; runCommand(c); $('bannerCmd').value = ''; $('bannerCmd').blur(); toast(dc && dc.readyState === 'open' ? 'Running…' : "Sent. It runs at the next check-in."); };
   $('chips').onclick = (e) => {
     if (e.target.id === 'addChip') return openSheet('snippets');
+    if (e.target.id === 'askChip') return openSheet('ask');
     const c = e.target.closest('[data-run]'); if (!c) return;
     const s = snippets.find((x) => x.id === c.dataset.run); if (!s) return;
     if (dc && dc.readyState === 'open') { input(s.cmd + '\r'); term.focus(); }
@@ -440,7 +553,7 @@ function setupUi() {
   $('retryDirect').onclick = () => { lastAttempt = 0; connect(); $('sheet').classList.remove('show'); };
   $('copyTopic').onclick = async () => { try { await navigator.clipboard.writeText(S.notifyTopic); toast('Copied. Paste it in the ntfy app → Subscribe.'); } catch { toast(S.notifyTopic); } };
   $('lockNow').onclick = async () => { await idbDel('session'); location.reload(); };
-  $('unpair').onclick = async () => { if (!confirm('Remove the pairing key from this phone?')) return; store.del('vault'); store.del('jobs'); await idbDel('session'); location.reload(); };
+  $('unpair').onclick = async () => { if (!confirm('Remove the pairing key from this phone?')) return; store.del('vault'); store.del('jobs'); store.del('ai'); await idbDel('session'); location.reload(); };
   renderJobs(); renderSnips();
 }
 

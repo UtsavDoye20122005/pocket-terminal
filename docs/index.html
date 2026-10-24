@@ -68,6 +68,9 @@
     </div>
     <div class="who"><b id="macName">Your computer</b><span id="status">Connecting…</span></div>
     <span class="batt" id="batt" hidden></span>
+    <button class="iconbtn ask" id="askBtn" aria-label="Find a command">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>
+    </button>
     <button class="iconbtn" id="menuBtn" aria-label="Menu">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
       <span class="badge" id="qn"></span>
@@ -103,10 +106,21 @@
   <div class="panel" role="dialog" aria-label="Menu">
     <div class="grab"></div>
     <div class="tabs" id="tabs">
+      <button data-tab="ask">Ask</button>
       <button data-tab="queue">Commands</button>
       <button data-tab="snippets">Snippets</button>
       <button data-tab="power">Power</button>
       <button data-tab="settings">Settings</button>
+    </div>
+    <div class="pane" id="pane-ask">
+      <form class="row2" id="askForm">
+        <input class="field-in plain" id="askIn" placeholder="find big files in Downloads" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="search">
+        <button class="btn" id="askGo">Ask AI</button>
+      </form>
+      <p class="hint" id="askHint">Say what you want in plain English, or type the part of a command you remember.</p>
+      <div class="list" id="askAi"></div>
+      <div class="sub" id="askLibTitle" hidden>Matches</div>
+      <div class="list" id="askLib"></div>
     </div>
     <div class="pane" id="pane-queue">
       <p class="hint">Runs once, in your home folder, up to 10 minutes. If the computer is asleep it runs at the next check-in, and the reply shows up here.</p>
@@ -149,6 +163,15 @@
       <div class="field"><div>Connection<small id="connInfo">–</small></div><button class="btn small ghost" id="retryDirect">Reconnect</button></div>
       <div class="field"><div>Notifications<small>Install the free <b>ntfy</b> app and subscribe to <code id="notifyTopic"></code></small></div>
         <button class="btn small ghost" id="copyTopic">Copy</button></div>
+      <div class="field"><div>AI helper<small id="aiInfo">Off</small></div><button class="btn small ghost" id="aiSetup">Set up</button></div>
+      <form class="aiform" id="aiForm" hidden>
+        <p class="hint">Turns plain English into commands. Uses <b>your own key</b>, kept encrypted on this phone. Only what you type in <b>Ask</b> goes to the AI, straight from this phone. Your computer, its files and command output are never sent.</p>
+        <select class="field-in plain" id="aiProvider"></select>
+        <input class="field-in" id="aiKey" type="password" placeholder="API key" autocomplete="off" spellcheck="false">
+        <input class="field-in" id="aiModel" placeholder="model" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <p class="hint" id="aiKeyHelp"></p>
+        <div class="row2"><button class="btn">Save</button><button type="button" class="btn ghost" id="aiOff">Turn off</button></div>
+      </form>
       <div class="field"><div>Text size</div><div class="seg"><button id="smaller" aria-label="Smaller text">A−</button><button id="bigger" aria-label="Bigger text">A+</button></div></div>
       <div class="field"><div>Lock now<small>Asks for your PIN next time</small></div><button class="btn small ghost" id="lockNow">Lock</button></div>
       <div class="field"><div>Unpair this phone<small>Removes the key from this phone. To lock out every phone, run <code>node pair.js --new</code> on the computer.</small></div><button class="btn small danger" id="unpair">Unpair</button></div>

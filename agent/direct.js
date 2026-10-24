@@ -46,7 +46,7 @@ function startDirect({ cfg, core, power, log, dir }) {
   // --- status: posted rarely, to stay well inside the board's free daily limit ---
   function statusBody(st) {
     const p = power ? power.status() : null;
-    return { state: st, name: cfg.name || os.hostname(), nextWake: p && st === 'sleeping' ? p.nextWake : null,
+    return { state: st, name: cfg.name || os.hostname(), os: process.platform, nextWake: p && st === 'sleeping' ? p.nextWake : null,
       checkIn: p ? p.nextCheckInMinutes : null, power: p ? { percent: p.percent, onCharger: p.onCharger, settings: p.settings } : null };
   }
   async function postStatus(st, { force = false } = {}) {
@@ -92,6 +92,7 @@ function startDirect({ cfg, core, power, log, dir }) {
       peers.add(send); core.clients.add(send);
       power && power.setPhoneWanting(true);
       log(`phone connected directly (${peers.size} open)`);
+      send({ t: 'hi', os: process.platform });
       send({ t: 'reset', d: core.screen() });
       if (power) send({ t: 'power', ...power.status() });
     };

@@ -13,6 +13,7 @@
   <a href="#-quick-start">Quick start</a> ·
   <a href="#-how-it-works">How it works</a> ·
   <a href="#-lid-closed-battery-safe">Lid closed</a> ·
+  <a href="#-forgot-the-command-just-ask">Ask</a> ·
   <a href="#-security">Security</a> ·
   <a href="#-faq">FAQ</a>
 </p>
@@ -39,6 +40,8 @@ for your commands, then goes back to sleep.
 | 🌍 **Any network** | Phone on mobile data, computer on any Wi-Fi. No router settings, no port forwarding. |
 | 🌙 **Works with the lid closed** | On charger it answers instantly. On battery it sleeps and checks in every 1–2 minutes. |
 | 🔐 **End-to-end encrypted** | A key only your devices have. Nothing in the middle can read a single character. |
+| ✦ **Ask in plain English** | "My app says port 3000 is in use" → the right command for your Mac or Windows PC, explained, ready to run. |
+| 🔎 **Half-remember a command?** | Type `git sta` or "big files" and pick from 70+ built-in commands, your saved ones and your history. Works offline. |
 | ⚡ **One-tap commands** | Save your common commands as chips above the keyboard. |
 | 📬 **Send now, runs later** | Computer asleep? Send the command anyway; the reply comes back to your phone. |
 | 🔋 **Battery-safe** | It never stays awake below 20% battery and stops waking below 10%. |
@@ -79,6 +82,29 @@ A small "power brain" on your computer decides when to stay awake:
 
 Each check-in keeps the computer awake for about 6 seconds, so frequent check-ins stay cheap.
 You can change all of this from the phone: **☰ → Power**.
+
+## ✦ Forgot the command? Just ask
+
+<img src="docs/screenshots/ask.png" alt="Ask screen: a plain-English request turned into two commands, each explained and labelled careful or safe" width="300" align="right">
+
+Tap **✦** and type what you want, either in plain English or the bit of the command you remember.
+
+- **Built-in finder (free, offline).** 70+ everyday commands for macOS, Windows and Linux, plus your
+  saved commands and the ones you ran before. Type `docker`, `git sta` or "free up port 3000" and the
+  matches appear as you type, with obvious blanks already filled in (`3000`, `~/Downloads`).
+- **AI helper (optional).** Anything the finder doesn't know goes to an AI with **your own key**.
+  [Groq](https://console.groq.com/keys) and [Google Gemini](https://aistudio.google.com/apikey) give free keys;
+  OpenAI, Anthropic and OpenRouter work too. It knows whether your computer runs zsh or PowerShell.
+- **Nothing runs by itself.** You see each command, a one-line explanation and a
+  <code>safe</code> / <code>careful</code> / <code>danger</code> label. The app checks every command itself
+  as well, so it doesn't just trust the AI. Danger needs a second tap. You can edit any command
+  before you run it.
+- **Private.** The key is stored encrypted on your phone. Only the sentence you type goes to the AI,
+  straight from your phone. Your files, command output and computer never do.
+
+Set it up in **☰ → Settings → AI helper**.
+
+<br clear="right">
 
 ## 🚀 Quick start
 
@@ -131,7 +157,9 @@ That's it. Open the app and you'll see your computer **awake, connected directly
 | I want to… | Do this |
 |---|---|
 | Run something quickly | Tap a saved-command chip, or type in the terminal |
-| Save a command | Tap **+ Save a command** |
+| Find a command I half-remember | Tap **✦**, type what you remember |
+| Turn English into a command | Tap **✦**, type it, tap **Ask AI** (needs a key in Settings) |
+| Save a command | Tap **+ Save a command**, or **Save** on any suggestion |
 | Run something while it sleeps | Type it in the "asleep" card; the reply shows in **☰ → Commands** |
 | Get a ping when it finishes | Install the free [ntfy app](https://ntfy.sh) and subscribe to the topic in **☰ → Settings** |
 | Show the QR code again | `node pair.js` (in the `agent` folder) |
@@ -146,6 +174,8 @@ That's it. Open the app and you'll see your computer **awake, connected directly
 - **Private by design:** the message board and STUN servers see only scrambled text and IP addresses.
   Command text is never written to logs. Notifications never contain your commands.
 - **Locked phone:** your key is stored encrypted with your PIN, and 10 wrong tries wipe it.
+- **AI is opt-in:** off until you add your own key. It only sees what you type in Ask, and never runs
+  anything without your tap.
 - **Minimal rights:** on Mac it can run exactly four `pmset` sleep commands; on Windows it needs no admin.
 
 Read [SECURITY.md](SECURITY.md) for the full threat model, including what it **doesn't** protect against.
@@ -218,6 +248,7 @@ agent/            runs on your computer
   pair.js           pairing QR code
   install.sh / install.ps1
 docs/             the phone app: static files served by GitHub Pages
+  js/helper.js      Ask: built-in command finder, safety check, AI providers
 test/             offline tests: fake board, fake sleeping computer, real WebRTC in a browser
 relay/            optional self-hosted relay
 ```
@@ -227,6 +258,7 @@ relay/            optional self-hosted relay
 ```bash
 cd agent && npm test        # power brain, Windows parsers, encryption, message boards
 python3 test/e2e_direct.py  # full run: phone app in a headless browser ⇄ agent, with a sleeping computer
+python3 test/e2e_ask.py     # Ask: finder, AI (fake provider), danger checks, key encryption
 ```
 
 The end-to-end test pairs a phone, opens the direct link, runs commands, puts the computer to sleep,
