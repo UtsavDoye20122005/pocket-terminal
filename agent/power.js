@@ -22,7 +22,7 @@ const DEFAULTS = {
   enabled: true,
   awakeOnCharger: true,   // on charger: always reachable, even with the lid closed
   batteryMode: 'saver',   // 'saver' = sleep when idle and check in; 'instant' = stay awake on battery too
-  checkInMinutes: 5,      // on battery: how often a sleeping Mac wakes to check for work
+  checkInMinutes: 2,      // on battery: how often a sleeping Mac wakes to check for work
   smartCheckIn: true,     // check in faster right after you used it: 1 min for 30 min, 2 min for 2 h
   idleMinutes: 5,         // on battery: stay awake this long after your last keystroke
   minBattery: 20,         // below this %: never stay awake on battery

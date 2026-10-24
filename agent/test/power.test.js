@@ -39,11 +39,11 @@ const last = () => calls.slice(-3).join(' | ');
   brain.firstContact = true; brain.connectedAt = t; // relay reached
   await step(3e3); assert.ok(!calls.includes('SLEEP'), 'gives the relay 5 s to send work');
   await step(3e3);
-  assert.strictEqual(last(), 'nosleep 0 | alarm +5m | SLEEP');
-  console.log('✓ on battery + idle: quick check-in (5 s after connecting), 5 min alarm, sleeps');
+  assert.strictEqual(last(), 'nosleep 0 | alarm +2m | SLEEP');
+  console.log('✓ on battery + idle: quick check-in (5 s after connecting), 2 min alarm, sleeps');
 
   // 3. Wakes from the alarm (big clock jump) → onWake, stays awake to check in
-  calls.length = 0; brain.lastTick = t; t += 5 * 60e3; brain.sleeping = false; await brain.tick();
+  calls.length = 0; brain.lastTick = t; t += 2 * 60e3; brain.sleeping = false; await brain.tick();
   assert.strictEqual(woke, 1); assert.ok(calls.includes('nosleep 1'));
   console.log('✓ wake detected, stays awake to check in');
 
@@ -89,8 +89,8 @@ const last = () => calls.slice(-3).join(' | ');
   brain.update({ batteryMode: 'saver' });
   brain.activity();                      assert.strictEqual(brain.nextCheckInMinutes(), 1);
   t += 45 * 60e3;                        assert.strictEqual(brain.nextCheckInMinutes(), 2);
-  t += 3 * 3600e3;                       assert.strictEqual(brain.nextCheckInMinutes(), 5);
-  brain.update({ smartCheckIn: false }); brain.activity(); assert.strictEqual(brain.nextCheckInMinutes(), 5);
+  t += 3 * 3600e3;                       assert.strictEqual(brain.nextCheckInMinutes(), 2);
+  brain.update({ smartCheckIn: false }); brain.activity(); assert.strictEqual(brain.nextCheckInMinutes(), 2);
   console.log('✓ smart check-ins: 1 min after use, then 2 min, then your setting');
 
   // 12. stop() never leaves the Mac stuck awake

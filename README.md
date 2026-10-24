@@ -19,7 +19,7 @@ No server to host, no account, no subscription. Free.
 - **Live terminal**: real zsh, colours, Ctrl/Esc/arrow keys, tab completion.
 - **Any network**: phone on mobile data, Mac on any Wi-Fi. No router settings.
 - **Lid closed**: on charger it's instant. On battery the Mac sleeps and wakes every
-  1–5 minutes to run what you sent. Battery use stays close to normal sleep.
+  1–2 minutes to run what you sent. Battery use stays close to normal sleep.
 - **End-to-end encrypted**: the board in the middle only ever sees scrambled text.
 - **★ Snippets**: one-tap saved commands.
 - **Commands while away**: send a command, get the output back, even if the Mac was asleep.
@@ -75,7 +75,7 @@ It asks for your Mac password **once** (so it can manage sleep), then shows a **
 |---|---|
 | On charger, lid closed | **Instantly** |
 | On battery, you used it in the last 30 min | Within **~1 min** |
-| On battery, idle for hours | Within **~5 min** (adjustable) |
+| On battery, idle for hours | Within **~2 min** (set 1 min in ☰ → Power for faster) |
 | On battery, *Instant* mode on | **Instantly** (uses more battery) |
 | Battery below 10% | Waits until you charge |
 
