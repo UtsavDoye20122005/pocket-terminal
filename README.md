@@ -1,170 +1,239 @@
-# 📱 Pocket Terminal
-
-**Your Mac's or Windows PC's terminal on your phone, from anywhere, even with the lid closed.**
-Phone and Mac connect **directly** (peer-to-peer) and everything is **end-to-end encrypted**.
-No server to host, no account, no subscription. Free.
-
-```
-📱 phone  ══════ direct, encrypted (WebRTC) ══════  💻 Mac, lid closed
-     ╲                                               ╱
-      ╲── one encrypted "hello" via a free board ───╱   (only to find each other)
-```
-
 <p align="center">
-  <img src="docs/screenshots/connected.png" width="30%" alt="Connected directly">
-  <img src="docs/screenshots/asleep.png" width="30%" alt="Mac asleep, check-in countdown">
-  <img src="docs/screenshots/commands.png" width="30%" alt="Command ran after the Mac woke up">
+  <img src="docs/readme/hero.png" alt="Pocket Terminal: your computer's terminal on your phone, even with the lid closed" width="100%">
 </p>
 
-- **Live terminal**: real zsh, colours, Ctrl/Esc/arrow keys, tab completion.
-- **Any network**: phone on mobile data, Mac on any Wi-Fi. No router settings.
-- **Lid closed**: on charger it's instant. On battery the Mac sleeps and wakes every
-  1–2 minutes to run what you sent. Battery use stays close to normal sleep.
-- **End-to-end encrypted**: the board in the middle only ever sees scrambled text.
-- **★ Snippets**: one-tap saved commands.
-- **Commands while away**: send a command, get the output back, even if the Mac was asleep.
-- **Battery-safe**: it never stays awake below 20% and stops waking below 10%.
-- **PIN-locked phone app**: installs to your home screen like a normal app.
+<p align="center">
+  <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-F4B740?style=flat-square&labelColor=171B2D"></a>
+  <img alt="macOS and Windows" src="https://img.shields.io/badge/runs%20on-macOS%20%7C%20Windows-F4B740?style=flat-square&labelColor=171B2D">
+  <img alt="End-to-end encrypted" src="https://img.shields.io/badge/end--to--end-encrypted-4FD1A1?style=flat-square&labelColor=171B2D">
+  <img alt="No server needed" src="https://img.shields.io/badge/server-not%20needed-4FD1A1?style=flat-square&labelColor=171B2D">
+</p>
+
+<p align="center">
+  <a href="#-quick-start">Quick start</a> ·
+  <a href="#-how-it-works">How it works</a> ·
+  <a href="#-lid-closed-battery-safe">Lid closed</a> ·
+  <a href="#-security">Security</a> ·
+  <a href="#-faq">FAQ</a>
+</p>
 
 ---
 
-## How it works (simple version)
+You're out, your laptop is in your bag with the lid shut, and you need to run *one* command on it.
+Restart a server, pull the latest code, check if a job finished.
 
-1. **Pairing (once):** your Mac makes a secret key and shows it as a QR code. Your phone scans
-   it. Now both have the same key. Nobody else ever sees it.
-2. **Finding each other:** both devices use a free public message board
-   ([ntfy.sh](https://ntfy.sh)) as a mailbox. The mailbox name and every note in it are
-   derived from your key and encrypted with it, so to anyone else it's random gibberish.
-3. **Direct link:** the phone posts "here's how to reach me", the Mac replies with its own
-   details, and both knock on each other at the same moment. Routers let that through
-   ("hole punching", the same trick video calls use). From then on, everything goes
-   **straight phone ⇄ Mac**.
-4. **If a network blocks direct links:** commands still work as encrypted notes through the board.
-   That's a few seconds slower, but it works anywhere normal browsing works.
-5. **Lid closed:** a small "power brain" keeps the Mac awake on charger. On battery it lets the
-   Mac sleep, sets a wake-up alarm, checks the mailbox for a few seconds, then sleeps again.
+**Pocket Terminal** lets you do that from your phone. Your phone and your computer connect
+**directly to each other**, everything is **end-to-end encrypted**, and there's **no server for
+you to run or pay for**. When the computer is asleep, it wakes itself every minute or two to check
+for your commands, then goes back to sleep.
 
-## Quick start (about 5 minutes)
+<p align="center">
+  <img src="docs/readme/screens.png" alt="Pair with a QR code and PIN, a live terminal, sending a command while the computer sleeps, replies, power settings" width="100%">
+</p>
 
-**You need:** a Mac (Apple Silicon or Intel) **or** a Windows 10/11 PC, with
-[Node.js 18.20+](https://nodejs.org), and an iPhone or Android phone.
+## ✨ What you get
 
-**1. Fork this repo and turn on GitHub Pages** (your own copy of the phone app; see why in [SECURITY.md](SECURITY.md))
-- Click **Fork** on GitHub.
-- In your fork: **Settings → Pages → Build and deployment → Deploy from a branch →**
-  Branch **main**, folder **/docs** → **Save**.
-- After about a minute, your app is live at `https://<your-username>.github.io/pocket-terminal/`.
+| | |
+|---|---|
+| 🖥️ **A real terminal** | zsh, bash or PowerShell with colours, tab completion, and Ctrl/Esc/arrow keys on a touch keyboard bar. |
+| 🌍 **Any network** | Phone on mobile data, computer on any Wi-Fi. No router settings, no port forwarding. |
+| 🌙 **Works with the lid closed** | On charger it answers instantly. On battery it sleeps and checks in every 1–2 minutes. |
+| 🔐 **End-to-end encrypted** | A key only your devices have. Nothing in the middle can read a single character. |
+| ⚡ **One-tap commands** | Save your common commands as chips above the keyboard. |
+| 📬 **Send now, runs later** | Computer asleep? Send the command anyway; the reply comes back to your phone. |
+| 🔋 **Battery-safe** | It never stays awake below 20% battery and stops waking below 10%. |
+| 📱 **Feels like an app** | PIN lock, home-screen install, works on iPhone and Android. |
 
-**2. Install on your computer**
+## 🧭 How it works
 
-*Mac* (Terminal):
+<p align="center">
+  <img src="docs/readme/how-it-works.svg" alt="Phone and computer meet through an encrypted note on a free message board, then talk directly" width="100%">
+</p>
+
+1. **Pairing (once).** Your computer makes a secret key and shows it as a QR code. Your phone scans
+   it. Now both devices share a key that never leaves them.
+2. **Finding each other.** Both use a free public message board ([ntfy.sh](https://ntfy.sh)) as a
+   private mailbox. The mailbox name and every note in it are scrambled with your key.
+3. **Direct link.** The phone leaves a note saying "here's how to reach me", the computer answers,
+   and both knock on each other at the same moment. Routers let that through. It's the same trick
+   video calls use. From then on your terminal flows **straight between your devices**.
+
+If a strict network blocks direct links, commands still travel as encrypted notes through the board.
+That's a few seconds slower, but it works anywhere normal web browsing works.
+
+## 🌙 Lid closed, battery safe
+
+<p align="center">
+  <img src="docs/readme/night-on-battery.svg" alt="Timeline of a night on battery: quick check-ins every 1 to 2 minutes, a command sent at 3:10 runs at the next check-in" width="100%">
+</p>
+
+A small "power brain" on your computer decides when to stay awake:
+
+| Your computer is… | Your command runs |
+|---|---|
+| Plugged in, lid closed | **Instantly** |
+| On battery, you used it in the last 30 min | Within **~1 minute** |
+| On battery, idle for hours | Within **~2 minutes** (set 1 min if you like) |
+| On battery with *Instant* mode on | **Instantly** (uses more battery) |
+| Below 10% battery | Waits until you charge |
+
+Each check-in keeps the computer awake for about 6 seconds, so frequent check-ins stay cheap.
+You can change all of this from the phone: **☰ → Power**.
+
+## 🚀 Quick start
+
+You need a **Mac or a Windows 10/11 PC** with [Node.js 18.20+](https://nodejs.org), and a phone.
+It takes about 5 minutes.
+
+### 1. Get your own copy of the phone app
+1. Click **Fork** at the top of this page.
+2. In your fork, go to **Settings → Pages** and pick **Deploy from a branch**, branch `main`, folder `/docs`. Click **Save**.
+3. After about a minute, your app is live at `https://<your-username>.github.io/pocket-terminal/`.
+
+> Why your own copy? The app's code is what handles your key. With your own fork, nobody else can
+> change it. See [SECURITY.md](SECURITY.md).
+
+### 2. Install on your computer
+
+<table>
+<tr><th>macOS (Terminal)</th><th>Windows (PowerShell, no admin needed)</th></tr>
+<tr><td>
+
 ```bash
-git clone https://github.com/<your-username>/pocket-terminal.git
-cd pocket-terminal/agent && bash install.sh
+git clone https://github.com/<you>/pocket-terminal.git
+cd pocket-terminal/agent
+bash install.sh
 ```
-It asks for your Mac password **once** (so it can manage sleep), then shows a **QR code**.
 
-*Windows* (PowerShell, no admin needed):
+</td><td>
+
 ```powershell
-git clone https://github.com/<your-username>/pocket-terminal.git
-cd pocket-terminal\agent; powershell -ExecutionPolicy Bypass -File install.ps1
+git clone https://github.com/<you>/pocket-terminal.git
+cd pocket-terminal\agent
+powershell -ExecutionPolicy Bypass -File install.ps1
 ```
-It starts the agent at every sign-in (hidden) and shows a **QR code**. Your phone gets
-**PowerShell** (set the `POCKET_SHELL` environment variable to `cmd.exe` or `pwsh.exe` to change it).
 
-**3. Pair your phone**
-- Scan the QR code with your phone's camera.
-- Choose an app **PIN**.
-- Tap **Share → Add to Home Screen**.
+</td></tr>
+<tr><td>Asks for your Mac password once (to manage sleep).</td><td>Starts at every sign-in, hidden.</td></tr>
+</table>
 
-**4. Use it.** Open the app and you'll see `● YourMac · direct 🔒`. Type away.
+Both end by showing a **QR code**.
 
-## Lid closed and battery
+### 3. Pair your phone
+1. Scan the QR code with your phone's camera.
+2. Choose a PIN.
+3. Tap **Share → Add to Home Screen** (iPhone) or **⋮ → Install app** (Android).
 
-| Mac state | Your command runs |
+That's it. Open the app and you'll see your computer **awake, connected directly**.
+
+## 🧰 Everyday use
+
+| I want to… | Do this |
 |---|---|
-| On charger, lid closed | **Instantly** |
-| On battery, you used it in the last 30 min | Within **~1 min** |
-| On battery, idle for hours | Within **~2 min** (set 1 min in ☰ → Power for faster) |
-| On battery, *Instant* mode on | **Instantly** (uses more battery) |
-| Battery below 10% | Waits until you charge |
+| Run something quickly | Tap a saved-command chip, or type in the terminal |
+| Save a command | Tap **+ Save a command** |
+| Run something while it sleeps | Type it in the "asleep" card; the reply shows in **☰ → Commands** |
+| Get a ping when it finishes | Install the free [ntfy app](https://ntfy.sh) and subscribe to the topic in **☰ → Settings** |
+| Show the QR code again | `node pair.js` (in the `agent` folder) |
+| Lock out every paired phone | `node pair.js --new`, then restart the agent |
+| See what it's doing | `tail -f ~/.pocket-terminal/agent.log` |
+| Uninstall | `bash uninstall.sh` (Mac) · `uninstall.ps1` (Windows); add `--purge` / `-Purge` to delete the key |
 
-Change all of this in the app: **☰ → Power**. Each quick check-in keeps the Mac awake about
-6 seconds. My rough estimate is a few percent of battery overnight. Check
-`~/.pocket-terminal/agent.log` for your real numbers.
+## 🔐 Security
 
-## Honest limits
+- **End-to-end encrypted:** AES-256-GCM for notes, DTLS for the direct link. The link's fingerprints
+  are exchanged inside the authenticated notes, so nobody can sit in the middle.
+- **Private by design:** the message board and STUN servers see only scrambled text and IP addresses.
+  Command text is never written to logs. Notifications never contain your commands.
+- **Locked phone:** your key is stored encrypted with your PIN, and 10 wrong tries wipe it.
+- **Minimal rights:** on Mac it can run exactly four `pmset` sleep commands; on Windows it needs no admin.
 
-- **The Mac must be on and online.** It can be asleep, just not shut down and not out of battery.
-- **The message board is a free public service** ([ntfy.sh](https://ntfy.sh)). It only carries
-  the encrypted "hellos" and backup commands, never your live terminal. It has a free daily
-  message limit, which is plenty for normal use. For heavy use, add your own board (see Advanced).
-- **Some strict networks block direct links** (some offices, some mobile carriers on IPv4).
-  Then you get the backup route: commands work, the live terminal doesn't.
-- **Windows is newer than macOS support (beta).** The live terminal, commands and lid-closed-on-charger
-  work the same. Windows can't report whether the lid is closed, so on battery it only puts the PC to
-  sleep after **10 minutes with no keyboard/mouse use**. Many newer laptops use "Modern Standby",
-  where wake-up alarms may not fire on battery. The installer tells you if yours does. Then use Instant
-  mode on battery, or keep it plugged in.
-- **Linux** runs the agent too (great for servers): live terminal and commands, no power brain.
-- **Quick check-ins with the lid closed need Wi-Fi to reconnect during a "dark wake".** Most Macs do
-  this. If yours doesn't, use Instant mode on battery, or keep it on charger.
+Read [SECURITY.md](SECURITY.md) for the full threat model, including what it **doesn't** protect against.
 
-## Notifications (optional)
-Install the free **ntfy** app ([iOS](https://apps.apple.com/app/ntfy/id1625396347) /
-[Android](https://play.google.com/store/apps/details?id=io.heckel.ntfy)) and subscribe to the
-topic shown in **☰ → Settings → Notifications**. You'll get "Command finished ✅" pings
-(content-free: never your command or output).
+## ⚖️ Honest limits
 
-## Everyday commands (on the Mac)
+- **The computer must be on and online.** Asleep is fine. Shut down or out of battery is not.
+- **The message board is a free public service.** It only carries the encrypted hellos and backup
+  commands, never your live terminal. It has a daily limit that's plenty for personal use. For heavy
+  use, add your own board (see Advanced).
+- **Some strict networks block direct links.** Then you get the slower backup route.
+- **Windows support is newer (beta).** Windows can't report whether the lid is closed, so on battery
+  it only sleeps after 10 minutes without keyboard or mouse use. Laptops with "Modern Standby" may
+  ignore wake-up alarms on battery. The installer tells you; use Instant mode or keep it plugged in.
+- **Quick check-ins need Wi-Fi to reconnect during a silent wake-up.** Most computers do this. If yours
+  doesn't, use Instant mode on battery.
 
-| What | Command (inside `pocket-terminal/agent`) |
-|---|---|
-| Show the QR code again | `node pair.js` |
-| Lock out every paired phone (new key) | `node pair.js --new` then restart the agent |
-| Restart the agent | `launchctl kickstart -k gui/$(id -u)/com.pocketterminal.agent` |
-| See the log | `tail -f ~/.pocket-terminal/agent.log` |
-| Uninstall (Mac) | `bash uninstall.sh` (add `--purge` to delete the key) |
-| Uninstall (Windows) | `powershell -ExecutionPolicy Bypass -File uninstall.ps1` (add `-Purge`) |
-| Log (Windows) | `Get-Content -Wait $HOME\.pocket-terminal\agent.log` |
+## ❓ FAQ
 
-## Advanced
-- **Your own message board** (no shared service at all): run [ntfy](https://docs.ntfy.sh/install/)
-  anywhere, then `node pair.js --board https://ntfy.your-domain.com` and re-pair. You can list
-  several boards: notes go to all of them, so if one is down the others still work.
-- **TURN server** for networks that block all direct links: add it to `~/.pocket-terminal/direct.json`
-  as `"iceServers": ["stun:stun.l.google.com:19302", "turn:user:pass@your.turn.host:3478"]`.
-- **Relay mode** (always-on server in the middle, web-push notifications): see [`relay/`](relay/).
+<details><summary><b>Is there really no server?</b></summary>
 
-## Project layout
+There's no server **you** run, and none that can read your data. Two devices on different networks
+can't find each other without *some* public meeting point, so a free message board passes a few
+encrypted "hello" notes. Your live terminal never goes through it.
+</details>
+
+<details><summary><b>How is this different from SSH, Tailscale or Claude Code's remote control?</b></summary>
+
+Those assume your computer is awake. Pocket Terminal is built around a computer that's **asleep in your
+bag**: it wakes itself briefly to check for work, runs it, replies, and sleeps again. And there's
+nothing to configure on your router or account to sign up for.
+</details>
+
+<details><summary><b>What does it cost in battery?</b></summary>
+
+Each check-in is about 6 seconds awake. With the defaults, my rough estimate is a few percent overnight.
+Your real numbers are in the log.
+</details>
+
+<details><summary><b>Can someone else control my computer?</b></summary>
+
+Only someone with your pairing key: your unlocked phone, or the QR code. If you think it leaked, run
+`node pair.js --new` and every old phone is locked out instantly.
+</details>
+
+<details><summary><b>Does it work on Linux?</b></summary>
+
+The agent runs on Linux (great for servers): live terminal and commands, without the sleep features.
+</details>
+
+## 🛠️ Advanced
+
+- **Your own message board:** run [ntfy](https://docs.ntfy.sh/install/) anywhere, then
+  `node pair.js --board https://ntfy.example.com` and re-pair. List several boards; if one is down,
+  the others still work.
+- **TURN server** for networks that block all direct links: add it to
+  `~/.pocket-terminal/direct.json` → `"iceServers": ["stun:stun.l.google.com:19302", "turn:user:pass@host:3478"]`.
+- **Different shell on Windows:** set `POCKET_SHELL` to `pwsh.exe` or `cmd.exe`.
+- **Relay mode** (an always-on server in the middle): see [`relay/`](relay/).
+
+## 🗂️ Project layout
+
 ```
-agent/            runs on your Mac or Windows PC
+agent/            runs on your computer
   agent.js          starts everything
-  direct.js         P2P link + encrypted mailbox (WebRTC via node-datachannel)
-  power.js          the power brain (lid-closed + battery rules)
-  platform/         the sleep/wake switches for macOS and Windows
-  lib/crypto.js     end-to-end encryption (HKDF + AES-256-GCM)
-  lib/board.js      message-board client (ntfy protocol)
-  lib/core.js       the terminal + one-off commands
+  direct.js         direct link + encrypted mailbox (WebRTC via node-datachannel)
+  power.js          the power brain: when to stay awake, when to sleep
+  platform/         sleep/wake switches for macOS and Windows
+  lib/              encryption (HKDF + AES-256-GCM), message board, terminal
   pair.js           pairing QR code
-  install.sh        one-command setup (Mac)
-  install.ps1       one-command setup (Windows)
-docs/             the phone app (static files, served by GitHub Pages)
-relay/            optional self-hosted relay (advanced)
-test/             offline tests: fake board, fake Mac, real WebRTC in a browser
+  install.sh / install.ps1
+docs/             the phone app: static files served by GitHub Pages
+test/             offline tests: fake board, fake sleeping computer, real WebRTC in a browser
+relay/            optional self-hosted relay
 ```
 
-## Tests
+## 🧪 Tests
+
 ```bash
-cd agent && npm test     # power brain + encryption + boards
+cd agent && npm test        # power brain, Windows parsers, encryption, message boards
+python3 test/e2e_direct.py  # full run: phone app in a headless browser ⇄ agent, with a sleeping computer
 ```
-The full end-to-end test (`test/`) runs a fake message board, the real phone app in a headless
-browser, and the Mac agent with a simulated sleeping Mac.
 
-## Security
-Short version: everything is end-to-end encrypted with a key only your devices have, the
-direct link is authenticated by that key, and the phone app is PIN-locked. Read
-[SECURITY.md](SECURITY.md) for the full threat model and what it does **not** protect against.
+The end-to-end test pairs a phone, opens the direct link, runs commands, puts the computer to sleep,
+sends a command, wakes it, checks the reply, tests the backup route, and confirms the board never saw
+any readable text.
 
-## License
-MIT. Built by [Utsav Doye](https://github.com/UtsavDoye20122005).
+## 📄 License
+
+[MIT](LICENSE). Built by [Utsav Doye](https://github.com/UtsavDoye20122005).
+If this saved you a trip back to your laptop, a ⭐ helps others find it.

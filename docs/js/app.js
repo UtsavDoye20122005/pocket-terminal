@@ -36,47 +36,91 @@ async function boot() {
     const boards = (h.get('boards') || '').split(',').filter((u) => /^https:\/\//.test(u) || /^http:\/\/(127\.0\.0\.1|localhost)[:/]/.test(u));
     pendingPair = { secret: h.get('pair'), name: (h.get('name') || 'your computer').slice(0, 40), boards: boards.length ? boards : DEFAULT_BOARDS };
     history.replaceState(null, '', location.pathname + location.search); // remove the secret from the address bar
-    $('pairName').textContent = pendingPair.name;
-    show('gate-pair'); return;
+    $('pairTitle').textContent = `Pair with ${pendingPair.name}`;
+    show('gate-pair'); pairFlow(); return;
   }
   const vault = store.get('vault');
   if (!vault) return show('gate-none');
   const s = await idbGet('session');
   if (s && s.expires > Date.now() && s.topic === vault.topic) return start(s);
-  $('lockName').textContent = vault.name;
-  show('gate-lock'); setTimeout(() => $('pin').focus(), 50);
+  $('lockTitle').textContent = `Unlock ${vault.name}`;
+  show('gate-lock'); lockFlow(vault);
 }
 
-$('pairForm').onsubmit = async (e) => {
-  e.preventDefault();
-  const a = $('pin1').value, b = $('pin2').value;
-  if (a.length < 6) return ($('pairErr').textContent = 'Use at least 6 digits.');
-  if (a !== b) return ($('pairErr').textContent = "PINs don't match.");
-  let keys; try { keys = await derive(pendingPair.secret); } catch { return ($('pairErr').textContent = 'This pairing link is broken. Make a new QR on your computer.'); }
-  const locked = await lockSecret(pendingPair.secret, a);
-  store.set('vault', { ...locked, name: pendingPair.name, boards: pendingPair.boards, topic: keys.topic });
-  store.set('fails', 0); store.del('jobs');
-  const s = { key: keys.key, topic: keys.topic, notifyTopic: keys.notifyTopic, boards: pendingPair.boards, name: pendingPair.name, expires: Date.now() + 12 * 3600e3 };
-  await idbSet('session', s);
-  pendingPair = null; start(s);
-};
-
-$('lockForm').onsubmit = async (e) => {
-  e.preventDefault();
-  const vault = store.get('vault');
-  const secret = await unlockSecret(vault, $('pin').value);
-  $('pin').value = '';
-  if (!secret) {
-    const f = store.get('fails', 0) + 1; store.set('fails', f);
-    if (f >= 10) { store.del('vault'); await idbDel('session'); show('gate-none'); toast('Too many wrong PINs: this phone was unpaired.'); return; }
-    $('lockErr').textContent = `Wrong PIN. ${10 - f} tries left before this phone is unpaired.`; return;
+// ---------- PIN pad (phone-style; the physical keyboard works too) ----------
+function pinPad(id, { goLabel, onDone, min = 6, max = 12 }) {
+  const pad = $(id + 'Pad'), dots = $(id + 'Dots');
+  let v = '';
+  const draw = () => {
+    dots.innerHTML = Array.from({ length: Math.max(min, v.length) }, (_, i) => `<i class="${i < v.length ? 'on' : ''}"></i>`).join('');
+    go.disabled = v.length < min;
+  };
+  const press = (k) => {
+    if (k === 'del') v = v.slice(0, -1);
+    else if (k === 'go') { if (v.length >= min) { const pin = v; v = ''; draw(); onDone(pin); } return; }
+    else if (v.length < max) v += k;
+    draw();
+  };
+  pad.innerHTML = '';
+  for (const k of ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'del', '0', 'go']) {
+    const b = document.createElement('button'); b.type = 'button';
+    if (k === 'del') { b.className = 'fn'; b.textContent = 'Delete'; b.setAttribute('aria-label', 'Delete'); }
+    else if (k === 'go') { b.className = 'go'; b.textContent = goLabel; }
+    else b.textContent = k;
+    b.onclick = () => press(k); pad.appendChild(b);
   }
-  store.set('fails', 0);
-  const keys = await derive(secret);
-  const s = { key: keys.key, topic: keys.topic, notifyTopic: keys.notifyTopic, boards: vault.boards || DEFAULT_BOARDS, name: vault.name, expires: Date.now() + ($('remember').checked ? 12 * 3600e3 : 0) };
-  if ($('remember').checked) await idbSet('session', s); else await idbDel('session');
-  start(s);
-};
+  var go = pad.lastChild;
+  const onKey = (e) => {
+    if (pad.closest('.gate').hidden) return;
+    if (/^\d$/.test(e.key)) press(e.key); else if (e.key === 'Backspace') press('del'); else if (e.key === 'Enter') press('go');
+  };
+  document.addEventListener('keydown', onKey);
+  draw();
+  return {
+    setLabel(t) { go.textContent = t; },
+    shake() { dots.classList.remove('shake'); void dots.offsetWidth; dots.classList.add('shake'); navigator.vibrate && navigator.vibrate(80); },
+    done() { document.removeEventListener('keydown', onKey); },
+  };
+}
+
+function pairFlow() {
+  let first = null;
+  const p = pinPad('pair', {
+    goLabel: 'Next',
+    onDone: async (pin) => {
+      if (!first) { first = pin; $('pairHint').textContent = 'Enter the same PIN again.'; $('pairErr').textContent = ''; p.setLabel('Pair'); return; }
+      if (pin !== first) { first = null; p.shake(); p.setLabel('Next'); $('pairHint').textContent = 'Choose a PIN for this phone (6 or more digits).'; $('pairErr').textContent = "Those didn't match. Start again."; return; }
+      let k; try { k = await derive(pendingPair.secret); } catch { $('pairErr').textContent = 'This pairing link is broken. Make a new QR code on your computer.'; return; }
+      p.done();
+      const locked = await lockSecret(pendingPair.secret, pin);
+      store.set('vault', { ...locked, name: pendingPair.name, boards: pendingPair.boards, topic: k.topic });
+      store.set('fails', 0); store.del('jobs');
+      const s = { key: k.key, topic: k.topic, notifyTopic: k.notifyTopic, boards: pendingPair.boards, name: pendingPair.name, expires: Date.now() + 12 * 3600e3 };
+      await idbSet('session', s);
+      pendingPair = null; start(s);
+    },
+  });
+}
+
+function lockFlow(vault) {
+  const p = pinPad('lock', {
+    goLabel: 'Unlock',
+    onDone: async (pin) => {
+      $('lockErr').textContent = 'Checking…';
+      const secret = await unlockSecret(vault, pin);
+      if (!secret) {
+        const f = store.get('fails', 0) + 1; store.set('fails', f); p.shake();
+        if (f >= 10) { store.del('vault'); await idbDel('session'); p.done(); show('gate-none'); toast('Too many wrong PINs. This phone was unpaired.'); return; }
+        $('lockErr').textContent = `Wrong PIN. ${10 - f} tries left before this phone is unpaired.`; return;
+      }
+      p.done(); store.set('fails', 0);
+      const k = await derive(secret);
+      const s = { key: k.key, topic: k.topic, notifyTopic: k.notifyTopic, boards: vault.boards || DEFAULT_BOARDS, name: vault.name, expires: Date.now() + ($('remember').checked ? 12 * 3600e3 : 0) };
+      if ($('remember').checked) await idbSet('session', s); else await idbDel('session');
+      start(s);
+    },
+  });
+}
 
 // ---------- main ----------
 let S, keys, board, term, fit;
@@ -170,7 +214,7 @@ function wire(ch) {
     dc = ch; linkState = 'direct'; clearTimeout(answerTimer); clearTimeout(openTimer);
     mac.state = 'online'; mac.ts = Date.now();
     fit.fit(); sendTerm({ t: 'r', cols: term.cols, rows: term.rows });
-    paint(); toast('Connected directly 🔒');
+    paint(); toast('Connected directly · end-to-end encrypted');
   };
   ch.onmessage = (e) => {
     let m; try { m = JSON.parse(e.data); } catch { return; }
@@ -195,43 +239,54 @@ function nextCheckIn() {
   while (t < Date.now() - 30e3 && step > 0) t += step;
   return t;
 }
-function until(t) { const s = Math.round((t - Date.now()) / 1000); if (s <= 0) return 'any moment'; const m = Math.floor(s / 60); return m ? `~${m + 1} min` : `${s}s`; }
+function until(t) {
+  const s = Math.round((t - Date.now()) / 1000); if (s <= 0) return 'any moment';
+  const m = Math.floor(s / 60); return m ? `${m}:${String(s % 60).padStart(2, '0')}` : `${s}s`;
+}
 
+const RING = 106.8; // circumference of the presence ring
 function paint() {
   if (!term) return;
   const name = mac.name || 'your computer';
   const p = livePower || mac.power;
   const nci = nextCheckIn();
-  let dot = 'off', status = '', banner = null;
-  if (linkState === 'direct') { dot = 'on'; status = `${name} · direct 🔒`; }
-  else if (linkState === 'connecting') { dot = 'slow'; status = `Connecting to ${name}…`; }
+  let look = 'off', ring = 0, status = '', banner = null;
+  const queued = jobs.filter((j) => j.status === 'waiting').length;
+  const queuedText = queued ? ` ${queued} command${queued > 1 ? 's' : ''} will run then.` : '';
+  if (linkState === 'direct') { look = 'awake'; ring = 1; status = 'Awake · direct, encrypted'; }
+  else if (linkState === 'connecting' && !(mac.state === 'sleeping' && nci)) { look = 'connecting'; ring = 0.25; status = 'Connecting…'; }
   else if (linkState === 'noboard' || board.up.size === 0) {
-    status = 'No internet / message board unreachable';
-    banner = ['Can\'t reach the message board', 'Check your internet. It retries by itself.', []];
+    status = 'Offline';
+    banner = ["You're offline", "Can't reach the message board. Check this phone's internet; it retries by itself.", false, []];
   } else if (linkState === 'backup') {
-    dot = 'slow'; status = `${name} · backup route`;
-    banner = ['Direct link blocked on this network', 'Commands still work through the encrypted backup route (a few seconds slower). The live terminal needs the direct link.', [['Run a command', () => openSheet('queue')], ['Try direct again', () => { lastAttempt = 0; connect(); }]]];
+    look = 'backup'; ring = 1; status = 'Backup route (slower)';
+    banner = ['Direct link blocked on this network', "Commands still work through the encrypted backup route. They're just a few seconds slower. The live terminal needs the direct link.", true, [['Try direct again', () => { lastAttempt = 0; connect(); }]]];
   } else if (mac.state === 'sleeping' && nci) {
-    status = `${name} asleep · check-in ${until(nci)}`;
-    banner = [`${name} is asleep to save battery`, `It wakes by itself to check in (next: ${until(nci)}). Keep this open and it connects on its own, or send a command and it runs at the check-in.`, [['Run a command', () => openSheet('queue')]]];
+    look = 'asleep'; ring = Math.max(0, Math.min(1, (nci - Date.now()) / ((mac.checkIn || 2) * 60e3)));
+    status = `Asleep · wakes in ${until(nci)}`;
+    banner = [`${name} is asleep`, `It checks in by itself in ${until(nci)}. Keep this open and it connects on its own, or send a command now and it runs at the check-in.${queuedText}`, true, []];
   } else {
-    status = `Waiting for ${name}…`;
-    banner = [`Waiting for ${name}`, `Last seen ${ago(mac.ts)}. If it's asleep it will connect at its next check-in. If it's off or offline, commands you send run when it's back.`, [['Run a command', () => openSheet('queue')]]];
+    status = mac.ts ? `Last seen ${ago(mac.ts)}` : 'Waiting…';
+    banner = [`Waiting for ${name}`, `If it's asleep, it connects at its next check-in. If it's off or offline, commands you send run when it's back.${queuedText}`, true, []];
   }
-  $('dot').className = dot; $('status').textContent = status;
+  $('macName').textContent = name;
+  $('presence').className = 'presence ' + look;
+  $('arc').style.strokeDashoffset = String(RING * (1 - ring));
+  $('status').textContent = status;
   if (banner) {
     $('banner').hidden = false; $('bannerTitle').textContent = banner[0]; $('bannerText').textContent = banner[1];
+    $('bannerForm').hidden = !banner[2];
     const row = $('bannerRow');
     if (row.dataset.key !== banner[0]) {
       row.dataset.key = banner[0]; row.innerHTML = '';
-      banner[2].forEach(([label, fn], i) => { const b = document.createElement('button'); b.className = 'btn small' + (i ? ' ghost' : ''); b.textContent = label; b.onclick = fn; row.appendChild(b); });
+      banner[3].forEach(([label, fn]) => { const b = document.createElement('button'); b.className = 'btn small ghost'; b.textContent = label; b.onclick = fn; row.appendChild(b); });
     }
   } else $('banner').hidden = true;
   if (p && p.percent != null) {
-    $('batt').hidden = false; $('batt').textContent = `${p.onCharger ? '⚡' : '🔋'} ${p.percent}%`;
-    $('batt').className = 'chip' + (!p.onCharger && p.percent < 20 ? ' low' : '');
+    $('batt').hidden = false; $('batt').textContent = `${p.onCharger ? '⚡' : ''}${p.percent}%`;
+    $('batt').className = 'batt' + (p.onCharger ? ' charging' : p.percent < 20 ? ' low' : '');
   }
-  $('connInfo').textContent = linkState === 'direct' ? 'Direct, end-to-end encrypted (WebRTC/DTLS)' : linkState === 'backup' ? 'Backup route: encrypted notes via the message board' : 'Not connected right now';
+  $('connInfo').textContent = linkState === 'direct' ? 'Direct and end-to-end encrypted' : linkState === 'backup' ? 'Backup route: encrypted notes through the message board' : 'Not connected right now';
   paintPower(p, nci);
 }
 
@@ -249,12 +304,14 @@ function applyMods(d) {
 function clearMods() { for (const k in mods) { mods[k] = false; modBtn[k] && modBtn[k].classList.remove('on'); } }
 function input(d) {
   if (dc && dc.readyState === 'open') sendTerm({ t: 'i', d });
-  else toast('No live link yet: use ★ or Commands to send a command');
+  else toast('Not connected yet. Use the command box or a saved command; it runs at the next check-in.');
 }
 function setupTerminal() {
   let size = store.get('font', matchMedia('(max-width:700px)').matches ? 13 : 15);
-  term = new Terminal({ fontFamily: 'ui-monospace, "SF Mono", Menlo, Consolas, monospace', fontSize: size, cursorBlink: true, scrollback: 5000,
-    theme: { background: '#0d1117', foreground: '#e6edf3', cursor: '#2f81f7', selectionBackground: '#264f78' } });
+  term = new Terminal({ fontFamily: '"JB Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace', fontSize: size, cursorBlink: true, scrollback: 5000, allowTransparency: true,
+    theme: { background: '#0B0E19', foreground: '#E9E7F2', cursor: '#F4B740', cursorAccent: '#0B0E19', selectionBackground: '#3A3460',
+      black: '#1E2338', red: '#FF7A7A', green: '#4FD1A1', yellow: '#F4B740', blue: '#7AA2FF', magenta: '#C79BFF', cyan: '#6FD3E6', white: '#E9E7F2',
+      brightBlack: '#5D6283', brightRed: '#FF9C9C', brightGreen: '#7BE3BD', brightYellow: '#FFD07A', brightBlue: '#9DBBFF', brightMagenta: '#DAB8FF', brightCyan: '#9BE6F2', brightWhite: '#FFFFFF' } });
   fit = new FitAddon.FitAddon(); term.loadAddon(fit); term.open($('term'));
   term.onData((d) => input(applyMods(d)));
   term.onResize(() => sendTerm({ t: 'r', cols: term.cols, rows: term.rows }));
@@ -264,6 +321,9 @@ function setupTerminal() {
   const layout = () => { const vv = window.visualViewport; app.style.height = (vv ? vv.height : innerHeight) + 'px'; if (vv) app.style.top = vv.offsetTop + 'px'; fit.fit(); };
   if (window.visualViewport) { visualViewport.addEventListener('resize', layout); visualViewport.addEventListener('scroll', layout); }
   addEventListener('resize', layout); layout();
+  if (document.fonts) document.fonts.ready.then(layout); // refit once the terminal font has loaded
+  // Phones scroll the page to show a focused input; put it back when the keyboard closes.
+  document.addEventListener('focusout', () => setTimeout(() => { if (!document.activeElement || document.activeElement === document.body) { window.scrollTo(0, 0); layout(); } }, 50));
 }
 
 // ---------- commands (jobs) ----------
@@ -282,7 +342,7 @@ async function runCommand(cmd) {
 function gotResult(cid, code, out) {
   const j = jobs.find((x) => x.cid === cid); if (!j || j.status === 'done') return;
   Object.assign(j, { status: 'done', code, out, finished: Date.now() }); saveJobs();
-  toast(code === 0 ? `✅ ${j.cmd.slice(0, 40)}` : `❌ ${j.cmd.slice(0, 40)} (exit ${code})`);
+  toast(code === 0 ? `Done: ${j.cmd.slice(0, 40)}` : `Failed (exit ${code}): ${j.cmd.slice(0, 40)}`);
 }
 function renderJobs() {
   $('qn').textContent = jobs.filter((j) => j.status === 'waiting' || j.status === 'running').length || '';
@@ -290,8 +350,8 @@ function renderJobs() {
     const tag = j.status === 'done' ? (j.code === 0 ? '<span class="tag done">done</span>' : `<span class="tag fail">exit ${esc(j.code)}</span>`)
       : j.status === 'running' ? '<span class="tag running">running</span>' : j.status === 'error' ? '<span class="tag fail">not sent</span>' : '<span class="tag">waiting for computer</span>';
     const out = j.status === 'done' || j.status === 'error' ? `<pre>${esc(j.out) || '(no output)'}</pre>` : '';
-    return `<div class="card"><div class="top"><code>${esc(j.cmd)}</code>${tag}</div>${out}<div class="meta"><span>sent ${ago(j.created)}${j.finished ? ' · finished ' + ago(j.finished) : ''}</span><button class="x" data-del="${esc(j.cid)}">remove</button></div></div>`;
-  }).join('') : '<div class="empty">No commands yet.</div>';
+    return `<div class="item"><div class="top"><code>${esc(j.cmd)}</code>${tag}</div>${out}<div class="meta"><span>sent ${ago(j.created)}${j.finished ? ' · finished ' + ago(j.finished) : ''}</span><button class="x" data-del="${esc(j.cid)}">remove</button></div></div>`;
+  }).join('') : '<div class="empty">No commands yet. Type one above and tap Run.</div>';
 }
 
 // ---------- snippets (stored on this phone) ----------
@@ -300,7 +360,11 @@ let snippets = store.get('snippets', [
   { id: 's3', name: 'Top processes', cmd: 'ps -Ao pid,%cpu,%mem,comm -r | head -8' }]);
 function renderSnips() {
   store.set('snippets', snippets);
-  $('snips').innerHTML = snippets.length ? snippets.map((s) => `<div class="card snip"><button class="run" data-run="${esc(s.id)}"><b>${esc(s.name)}</b><code>${esc(s.cmd)}</code></button><button class="x" data-sdel="${esc(s.id)}">✕</button></div>`).join('') : '<div class="empty">Add your common commands below.</div>';
+  renderChips();
+  $('snips').innerHTML = snippets.length ? snippets.map((s) => `<div class="item snip"><button class="run" data-run="${esc(s.id)}"><b>${esc(s.name)}</b><code>${esc(s.cmd)}</code></button><button class="x" data-sdel="${esc(s.id)}">✕</button></div>`).join('') : '<div class="empty">No saved commands yet. Add one below.</div>';
+}
+function renderChips() {
+  $('chips').innerHTML = snippets.map((s) => `<button class="chip" data-run="${esc(s.id)}">${esc(s.name)}</button>`).join('') + '<button class="chip add" id="addChip">+ Save a command</button>';
 }
 
 // ---------- power ----------
@@ -336,9 +400,15 @@ function setupUi() {
     };
   });
   document.querySelectorAll('#tabs button').forEach((b) => (b.onclick = () => openSheet(b.dataset.tab)));
-  $('menuBtn').onclick = () => openSheet(store.get('tab', 'snippets'));
-  $('starKey').addEventListener('pointerdown', (e) => e.preventDefault());
-  $('starKey').onclick = () => openSheet('snippets');
+  $('menuBtn').onclick = () => openSheet(store.get('tab', 'queue'));
+  $('bannerForm').onsubmit = (e) => { e.preventDefault(); const c = $('bannerCmd').value; if (!c.trim()) return; runCommand(c); $('bannerCmd').value = ''; $('bannerCmd').blur(); toast(dc && dc.readyState === 'open' ? 'Running…' : "Sent. It runs at the next check-in."); };
+  $('chips').onclick = (e) => {
+    if (e.target.id === 'addChip') return openSheet('snippets');
+    const c = e.target.closest('[data-run]'); if (!c) return;
+    const s = snippets.find((x) => x.id === c.dataset.run); if (!s) return;
+    if (dc && dc.readyState === 'open') { input(s.cmd + '\r'); term.focus(); }
+    else { runCommand(s.cmd); toast(`Sent “${s.name}”. The reply shows in Commands.`); }
+  };
   $('sheet').onclick = (e) => { if (e.target.id === 'sheet') { $('sheet').classList.remove('show'); term.focus(); } };
 
   $('qform').onsubmit = (e) => { e.preventDefault(); runCommand($('qcmd').value); $('qcmd').value = ''; };

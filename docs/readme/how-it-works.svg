@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 600" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="0%" r="100%"><stop offset="0" stop-color="#1D2348"/><stop offset="1" stop-color="#0F1220"/></radialGradient>
+    <marker id="a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#8D91AE"/></marker>
+    <marker id="aa" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="userSpaceOnUse" markerWidth="22" markerHeight="22" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#F4B740"/></marker>
+  </defs>
+  <rect width="1280" height="600" rx="24" fill="url(#bg)"/>
+
+  <!-- phone -->
+  <g transform="translate(120 190)">
+    <rect width="150" height="260" rx="26" fill="#171B2D" stroke="#3A4062" stroke-width="3"/>
+    <rect x="14" y="40" width="122" height="150" rx="10" fill="#0B0E19"/>
+    <text x="26" y="72" fill="#F4B740" font-family="Menlo, Consolas, monospace" font-size="16">$ ls</text>
+    <text x="26" y="96" fill="#E9E7F2" font-family="Menlo, Consolas, monospace" font-size="13" opacity=".8">README.md</text>
+    <text x="26" y="116" fill="#E9E7F2" font-family="Menlo, Consolas, monospace" font-size="13" opacity=".8">projects</text>
+    <rect x="26" y="130" width="9" height="16" fill="#F4B740"/>
+    <text x="75" y="300" fill="#E9E7F2" font-size="22" font-weight="600" text-anchor="middle">Your phone</text>
+    <text x="75" y="326" fill="#8D91AE" font-size="16" text-anchor="middle">any network</text>
+  </g>
+
+  <!-- computer, lid closed -->
+  <g transform="translate(930 240)">
+    <rect x="0" y="40" width="240" height="22" rx="6" fill="#2A2F4A"/>
+    <rect x="10" y="18" width="220" height="24" rx="6" fill="#3A4062"/>
+    <circle cx="120" cy="30" r="5" fill="#F4B740"/>
+    <circle cx="120" cy="30" r="14" fill="#F4B740" opacity=".18"/>
+    <path d="M196 -40a26 26 0 1 0 22 38a20 20 0 1 1-22-38z" fill="#E9E7F2" opacity=".85"/>
+    <text x="120" y="110" fill="#E9E7F2" font-size="22" font-weight="600" text-anchor="middle">Your Mac or PC</text>
+    <text x="120" y="136" fill="#8D91AE" font-size="16" text-anchor="middle">lid closed, any Wi-Fi</text>
+  </g>
+
+  <!-- the board -->
+  <g transform="translate(500 48)">
+    <rect width="280" height="96" rx="18" fill="#171B2D" stroke="#3A4062" stroke-width="2" stroke-dasharray="6 6"/>
+    <text x="140" y="42" fill="#E9E7F2" font-size="20" font-weight="600" text-anchor="middle">Free message board</text>
+    <text x="140" y="70" fill="#8D91AE" font-size="15" text-anchor="middle">sees only scrambled text</text>
+  </g>
+
+  <!-- hello / answer -->
+  <path d="M250 195 C 330 110, 420 96, 492 96" fill="none" stroke="#8D91AE" stroke-width="2.5" stroke-dasharray="7 7" marker-end="url(#a)"/>
+  <path d="M788 96 C 870 96, 960 140, 1030 222" fill="none" stroke="#8D91AE" stroke-width="2.5" stroke-dasharray="7 7" marker-end="url(#a)"/>
+  <g fill="#C9C7DA" font-size="16">
+    <circle cx="318" cy="168" r="15" fill="#272C45"/><text x="318" y="174" text-anchor="middle" font-weight="700" fill="#F4B740">1</text>
+    <text x="342" y="164">encrypted "hello,</text><text x="342" y="184">here's how to reach me"</text>
+    <circle cx="690" cy="190" r="15" fill="#272C45"/><text x="690" y="196" text-anchor="middle" font-weight="700" fill="#F4B740">2</text>
+    <text x="714" y="186">computer reads it at its</text><text x="714" y="206">next check-in and answers</text>
+  </g>
+
+  <!-- the direct link -->
+  <path d="M290 330 L 900 300" fill="none" stroke="#F4B740" stroke-width="7" stroke-linecap="round" marker-start="url(#aa)" marker-end="url(#aa)"/>
+  <path d="M290 330 L 900 300" fill="none" stroke="#F4B740" stroke-width="22" stroke-linecap="round" opacity=".12"/>
+  <g font-size="16">
+    <circle cx="470" cy="368" r="15" fill="#272C45"/><text x="470" y="374" text-anchor="middle" font-weight="700" fill="#F4B740">3</text>
+    <text x="494" y="364" fill="#E9E7F2" font-size="20" font-weight="600">Direct link, end-to-end encrypted</text>
+    <text x="494" y="390" fill="#8D91AE">your terminal flows phone ⇄ computer; nothing in between</text>
+  </g>
+
+  <text x="640" y="566" fill="#8D91AE" font-size="15" text-anchor="middle">If a network blocks direct links, commands still travel as encrypted notes through the board (a few seconds slower).</text>
+</svg>
