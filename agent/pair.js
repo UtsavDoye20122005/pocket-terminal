@@ -44,14 +44,16 @@ save();
 
 if (flag('--list')) {
   if (!cfg.devices.length) console.log('No phones paired yet. Run:  node pair.js');
-  for (const d of cfg.devices) console.log(`• ${d.name}  (paired ${new Date(d.added).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })})`);
-  if (cfg.devices.length > 1) console.log('The last one is the newest.');
+  cfg.devices.forEach((d, i) => console.log(`${i + 1}. ${d.name}  (paired ${new Date(d.added).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })})`));
+  if (cfg.devices.length > 1) console.log('The last one is the newest. Remove one with:  node pair.js --remove <number>');
   process.exit(0);
 }
 if (flag('--remove')) {
-  const who = (arg('--remove') || '').toLowerCase();
+  const norm = (x) => String(x || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const who = norm(args.slice(args.indexOf('--remove') + 1).filter((x) => !x.startsWith('--')).join(' '));
   const before = cfg.devices.length;
-  cfg.devices = who === 'all' ? [] : cfg.devices.filter((d) => d.name.toLowerCase() !== who && d.id !== who);
+  const n = /^\d+$/.test(who) ? Number(who) : 0;
+  cfg.devices = who === 'all' ? [] : cfg.devices.filter((d, i) => i + 1 !== n && norm(d.name) !== who && d.id !== who);
   save();
   console.log(before === cfg.devices.length ? `No phone called "${who}". See: node pair.js --list` : `Removed. ${cfg.devices.length} phone(s) can still connect. It takes effect within a few seconds.`);
   process.exit(0);

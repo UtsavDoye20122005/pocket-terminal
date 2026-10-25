@@ -40,7 +40,7 @@ function startDevices({ core, power, log, dir }) {
       if (running.has(d.id) || typeof d.secret !== 'string') continue;
       const plog = (...a) => log(`[${d.name}]`, ...a);
       try {
-        const t = startDirect({ cfg: { ...cfg, secret: d.secret, stateFile: `state-${d.id}.json` }, core, power: powerFor(d.id), log: plog, dir });
+        const t = startDirect({ cfg: { ...cfg, secret: d.secret, deviceId: d.id, stateFile: `state-${d.id}.json` }, core, power: powerFor(d.id), log: plog, dir });
         running.set(d.id, { t, secret: d.secret, name: d.name });
         log(`phone ready: ${d.name}`);
       } catch (e) { log(`could not start ${d.name}: ${e.message}`); }

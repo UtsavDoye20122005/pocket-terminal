@@ -9,7 +9,7 @@ import { Board, MAX_NOTE } from './board.js';
 import { search, riskOf, needsFill, askAi, PROVIDERS } from './helper.js';
 
 const $ = (id) => document.getElementById(id);
-const APP_VERSION = '5.3';
+const APP_VERSION = '5.4';
 const DEFAULT_BOARDS = ['https://ntfy.sh'];
 const ICE = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] }];
 const store = {
@@ -232,6 +232,7 @@ function lockFlow(vault) {
 
 // ---------- main ----------
 let S, keys, board, term, fit;
+let lastPong = 0;
 let pc = null, dc = null, linkState = 'idle', lastAttempt = 0, offerAt = 0, answerTimer = null, openTimer = null;
 const seen = new Set();
 const mac = { state: null, ts: 0, nextWake: null, checkIn: null, power: null, name: '' };
@@ -257,7 +258,11 @@ function start(session) {
     if (document.visibilityState !== 'visible') { clearTimeout(retryTimer); return; }
     retryN = 0;
     board.restart(); // phones kill background connections
-    if (!dc || dc.readyState !== 'open') connect();
+    if (!dc || dc.readyState !== 'open') return connect();
+    const asked = Date.now(); sendTerm({ t: 'ping' });
+    setTimeout(() => { // no answer: the link died while we were away. Rebuild it.
+      if (lastPong < asked && dc) { const old = dc; dc = null; try { old.close(); pc && pc.close(); } catch {} lastAttempt = 0; connect(); }
+    }, 2500);
   });
 }
 
@@ -338,11 +343,24 @@ function scheduleRetry() {
   retryTimer = setTimeout(() => { if (!dc || dc.readyState !== 'open') { lastAttempt = 0; connect(); } }, ms);
 }
 
+// One terminal session per app launch: switching apps and coming back continues it; a fresh
+// launch (the app was closed) gets a fresh terminal. sessionStorage ends when the app is closed.
+let SID = null;
+try { SID = sessionStorage.getItem('pt_sid'); if (!SID) { SID = randomId(); sessionStorage.setItem('pt_sid', SID); } } catch { SID = randomId(); }
+// Typing or pasting while the link is coming back is kept and sent once it's back (if within 60 s).
+let pending = [], pendingToast = 0;
+function flushPending() {
+  const now = Date.now(); const keep = pending.filter((p) => now - p.at < 60e3).map((p) => p.d).join('');
+  pending = []; if (keep) sendTerm({ t: 'i', d: keep });
+}
+
 function wire(ch) {
   ch.onopen = () => {
     dc = ch; linkState = 'direct'; clearTimeout(answerTimer); clearTimeout(openTimer); clearTimeout(retryTimer); retryN = 0;
-    mac.state = 'online'; mac.ts = Date.now();
+    mac.state = 'online'; mac.ts = Date.now(); lastPong = Date.now();
+    sendTerm({ t: 'attach', sid: SID, cols: term.cols, rows: term.rows }); // first, before any resize
     fit.fit(); sendTerm({ t: 'r', cols: term.cols, rows: term.rows });
+    flushPending();
     paint(); toast('Connected directly · end-to-end encrypted');
   };
   ch.onmessage = (e) => {
@@ -350,6 +368,7 @@ function wire(ch) {
     if (m.t === 'o') term.write(m.d);
     else if (m.t === 'reset') { term.reset(); if (m.d) term.write(m.d); }
     else if (m.t === 'power') { livePower = m; paint(); }
+    else if (m.t === 'pong') lastPong = Date.now();
     else if (m.t === 'hi') { if (m.os) setOs(m.os); }
     else if (m.t === 'revoked') revoked();
     else if (m.t === 'result') gotResult(m.id, m.code, m.out);
@@ -423,7 +442,7 @@ function paint() {
 }
 
 // ---------- terminal ----------
-const KEYS = { esc: '\x1b', tab: '\t', up: '\x1b[A', down: '\x1b[B', right: '\x1b[C', left: '\x1b[D', home: '\x1b[H', end: '\x1b[F', pgup: '\x1b[5~', pgdn: '\x1b[6~', cc: '\x03', cd: '\x04', cz: '\x1a', cl: '\x0c', cr: '\x12' };
+const KEYS = { cx: '\x18', co: '\x0f', esc: '\x1b', tab: '\t', up: '\x1b[A', down: '\x1b[B', right: '\x1b[C', left: '\x1b[D', home: '\x1b[H', end: '\x1b[F', pgup: '\x1b[5~', pgdn: '\x1b[6~', cc: '\x03', cd: '\x04', cz: '\x1a', cl: '\x0c', cr: '\x12' };
 const mods = { ctrl: false, alt: false }, modBtn = {};
 function applyMods(d) {
   if (!mods.ctrl && !mods.alt) return d;
@@ -435,8 +454,11 @@ function applyMods(d) {
 }
 function clearMods() { for (const k in mods) { mods[k] = false; modBtn[k] && modBtn[k].classList.remove('on'); } }
 function input(d) {
-  if (dc && dc.readyState === 'open') sendTerm({ t: 'i', d });
-  else toast('Not connected yet. Use the command box or a saved command; it runs at the next check-in.');
+  if (dc && dc.readyState === 'open') return sendTerm({ t: 'i', d });
+  if (pending.reduce((n, p) => n + p.d.length, 0) + d.length > 16e3) return toast("Not connected. Too much to hold; try again when it's back.");
+  pending.push({ d, at: Date.now() });
+  if (Date.now() - pendingToast > 4000) { pendingToast = Date.now(); toast('Reconnecting… what you typed is sent as soon as it’s back.'); }
+  if (linkState !== 'connecting') { lastAttempt = 0; connect(); }
 }
 function setupTerminal() {
   let size = store.get('font', matchMedia('(max-width:700px)').matches ? 13 : 15);
@@ -444,7 +466,7 @@ function setupTerminal() {
     theme: { background: '#0B0E19', foreground: '#E9E7F2', cursor: '#F4B740', cursorAccent: '#0B0E19', selectionBackground: '#3A3460',
       black: '#1E2338', red: '#FF7A7A', green: '#4FD1A1', yellow: '#F4B740', blue: '#7AA2FF', magenta: '#C79BFF', cyan: '#6FD3E6', white: '#E9E7F2',
       brightBlack: '#5D6283', brightRed: '#FF9C9C', brightGreen: '#7BE3BD', brightYellow: '#FFD07A', brightBlue: '#9DBBFF', brightMagenta: '#DAB8FF', brightCyan: '#9BE6F2', brightWhite: '#FFFFFF' } });
-  fit = new FitAddon.FitAddon(); term.loadAddon(fit); term.open($('term'));
+  fit = new FitAddon.FitAddon(); term.loadAddon(fit); term.open($('term')); setupTouchScroll();
   term.onData((d) => input(applyMods(d)));
   term.onResize(() => sendTerm({ t: 'r', cols: term.cols, rows: term.rows }));
   const setFont = (n) => { size = Math.max(9, Math.min(24, n)); term.options.fontSize = size; store.set('font', size); fit.fit(); };
@@ -456,6 +478,44 @@ function setupTerminal() {
   if (document.fonts) document.fonts.ready.then(layout); // refit once the terminal font has loaded
   // Phones scroll the page to show a focused input; put it back when the keyboard closes.
   document.addEventListener('focusout', () => setTimeout(() => { if (!document.activeElement || document.activeElement === document.body) { window.scrollTo(0, 0); layout(); } }, 50));
+}
+
+// A key on the bar: fire on touch end and cancel the tap's click, so the phone keyboard keeps its
+// focus (a normal tap first blurs the terminal on iPhone, and the key can get lost). Mouse: click.
+function tapKey(b, fire) {
+  let x = 0, y = 0, moved = false;
+  b.addEventListener('touchstart', (e) => { const t = e.touches[0]; x = t.clientX; y = t.clientY; moved = false; }, { passive: true });
+  b.addEventListener('touchmove', (e) => { const t = e.touches[0]; if (Math.abs(t.clientX - x) > 8 || Math.abs(t.clientY - y) > 8) moved = true; }, { passive: true });
+  b.addEventListener('touchend', (e) => { e.preventDefault(); if (!moved) fire(); }, { passive: false });
+  b.addEventListener('mousedown', (e) => e.preventDefault());
+  b.onclick = fire;
+}
+// Paste: the clipboard if the phone allows it, else a box you can long-press and paste into.
+async function pasteFlow() {
+  try { const t = await navigator.clipboard.readText(); if (t) { term.paste(t); term.focus(); return; } } catch {}
+  $('pasteText').value = ''; $('pasteBox').hidden = false; setTimeout(() => $('pasteText').focus(), 50);
+}
+function closePaste() { $('pasteBox').hidden = true; $('pasteText').blur(); term.focus(); }
+
+// Swipe up/down on the terminal scrolls only the terminal (never the page). In full-screen
+// programs (nano, less, top) a swipe sends arrow keys instead.
+function setupTouchScroll() {
+  const el = $('term'); let ty = null, acc = 0;
+  const lineH = () => { const r = el.querySelector('.xterm-rows > div'); return (r && r.offsetHeight) || term.options.fontSize * 1.2; };
+  el.addEventListener('touchstart', (e) => { ty = e.touches.length === 1 ? e.touches[0].clientY : null; acc = 0; }, { passive: true, capture: true });
+  el.addEventListener('touchmove', (e) => {
+    if (ty === null) return;
+    e.preventDefault(); e.stopPropagation();
+    const y = e.touches[0].clientY; acc += ty - y; ty = y;
+    const n = Math.trunc(acc / lineH()); if (!n) return; acc -= n * lineH();
+    if (term.buffer.active.type === 'alternate') input((n > 0 ? KEYS.down : KEYS.up).repeat(Math.min(Math.abs(n), 5)));
+    else term.scrollLines(n);
+  }, { passive: false, capture: true });
+  el.addEventListener('touchend', () => { ty = null; }, { passive: true, capture: true });
+  // Everywhere else: only real scroll areas may scroll; the page itself never moves.
+  document.addEventListener('touchmove', (e) => {
+    if (!e.target.closest('.pane, .gate, .chips, .keys, .panel, textarea, input, .scanner, .card-state')) e.preventDefault();
+  }, { passive: false });
 }
 
 // ---------- commands (jobs) ----------
@@ -646,18 +706,18 @@ function openSheet(tab) {
 }
 function setupUi() {
   document.querySelectorAll('[data-mod]').forEach((b) => { modBtn[b.dataset.mod] = b;
-    b.addEventListener('pointerdown', (e) => e.preventDefault());
-    b.onclick = () => { mods[b.dataset.mod] = !mods[b.dataset.mod]; b.classList.toggle('on'); term.focus(); }; });
+    tapKey(b, () => { mods[b.dataset.mod] = !mods[b.dataset.mod]; b.classList.toggle('on'); term.focus(); }); });
   document.querySelectorAll('#keys [data-k], #keys [data-t]').forEach((b) => {
-    b.addEventListener('pointerdown', (e) => e.preventDefault());
-    b.onclick = async () => {
+    tapKey(b, async () => {
       const k = b.dataset.k;
-      if (k === 'paste') { try { const t = await navigator.clipboard.readText(); if (t) input(t); } catch { const t = prompt('Paste here:'); if (t) input(t); } }
-      else if (k) { const pre = mods.alt ? '\x1b' : ''; clearMods(); input(pre + KEYS[k]); }
+      if (k === 'paste') return pasteFlow();
+      if (k) { const pre = mods.alt ? '\x1b' : ''; clearMods(); input(pre + KEYS[k]); }
       else input(applyMods(b.dataset.t));
       term.focus();
-    };
+    });
   });
+  $('pasteSend').onclick = () => { const t = $('pasteText').value; closePaste(); if (t) { term.paste(t); toast('Pasted'); } };
+  $('pasteCancel').onclick = closePaste;
   document.querySelectorAll('#tabs button').forEach((b) => (b.onclick = () => openSheet(b.dataset.tab)));
   $('menuBtn').onclick = () => openSheet(store.get('tab', 'queue') === 'ask' ? 'queue' : store.get('tab', 'queue'));
   $('askBtn').onclick = () => openSheet('ask');

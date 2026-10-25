@@ -118,7 +118,7 @@
     <button data-k="esc">Esc</button><button data-k="tab">Tab</button>
     <button data-mod="ctrl">Ctrl</button><button data-mod="alt">Alt</button>
     <button data-k="up" aria-label="Up">↑</button><button data-k="down" aria-label="Down">↓</button><button data-k="left" aria-label="Left">←</button><button data-k="right" aria-label="Right">→</button>
-    <button data-k="cc">^C</button><button data-k="cd">^D</button><button data-k="cz">^Z</button><button data-k="cl">^L</button><button data-k="cr">^R</button>
+    <button data-k="cc">^C</button><button data-k="cx" aria-label="Control X">^X</button><button data-k="co" aria-label="Control O">^O</button><button data-k="cd">^D</button><button data-k="cz">^Z</button><button data-k="cl">^L</button><button data-k="cr">^R</button>
     <button data-t="|">|</button><button data-t="~">~</button><button data-t="/">/</button><button data-t="-">-</button>
     <button data-t="_">_</button><button data-t="&gt;">&gt;</button><button data-t="$">$</button><button data-t="&amp;">&amp;</button>
     <button data-k="home">Home</button><button data-k="end">End</button><button data-k="pgup">PgUp</button><button data-k="pgdn">PgDn</button>
@@ -206,6 +206,14 @@
   </div>
 </div>
 <div class="toast" id="toast" role="status"></div>
+<div class="pastebox" id="pasteBox" hidden>
+  <div class="panel">
+    <b>Paste here</b>
+    <p class="hint">Long-press the box below and tap <b>Paste</b>, then <b>Send</b>.</p>
+    <textarea id="pasteText" rows="5" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
+    <div class="row2"><button class="btn ghost" id="pasteCancel" type="button">Cancel</button><button class="btn" id="pasteSend" type="button">Send</button></div>
+  </div>
+</div>
 <div class="scanner" id="scanner" hidden>
   <video id="scanVideo" playsinline muted></video>
   <div class="scanframe"></div>

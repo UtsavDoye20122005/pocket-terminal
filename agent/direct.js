@@ -88,25 +88,41 @@ function startDirect({ cfg, core, power, log, dir }) {
         dc.sendMessage(JSON.stringify({ ...msg, out: msg.out.slice(-Math.floor(max / 2)) }));
       }
     };
+    // The phone says which terminal session it is continuing ("attach"). Older phones don't:
+    // after a moment they get the shared session.
+    let sess = null, attachTimer = null, size = {};
+    const deviceKey = cfg.deviceId || keys.topic.slice(3, 11);
+    const bind = (sid) => {
+      if (sess) return sess;
+      clearTimeout(attachTimer);
+      const key = `${deviceKey}:${String(sid || 'shared').replace(/[^\w-]/g, '').slice(0, 40) || 'shared'}`;
+      core.dropOthers(deviceKey + ':', key); // this phone started fresh: close its old idle terminals
+      sess = core.session(key); sess.clients.add(send);
+      log(`terminal: ${sess.hasShell() ? 'continuing' : 'new'} session ${key.split(':')[1].slice(0, 6)}`);
+      send({ t: 'hi', os: process.platform });
+      send({ t: 'reset', d: sess.screen() });
+      if (power) send({ t: 'power', ...power.status() });
+      return sess;
+    };
     const onOpen = () => {
-      peers.add(send); core.clients.add(send);
+      peers.add(send);
       power && power.setPhoneWanting(true);
       log(`phone connected directly (${peers.size} open)`);
-      send({ t: 'hi', os: process.platform });
-      send({ t: 'reset', d: core.screen() });
-      if (power) send({ t: 'power', ...power.status() });
+      attachTimer = setTimeout(() => { bind(null); if (size.cols) sess.resize(size.cols | 0, size.rows | 0); }, 1500);
     };
     if (dc.isOpen()) onOpen(); else dc.onOpen(onOpen);
     dc.onMessage((raw) => {
       let m; try { m = JSON.parse(String(raw)); } catch { return; }
-      if (m.t === 'i' && typeof m.d === 'string') core.input(m.d);
-      else if (m.t === 'r') core.resize(m.cols | 0, m.rows | 0);
+      if (m.t === 'attach') { bind(m.sid); const c = m.cols || size.cols, r = m.rows || size.rows; if (c) sess.resize(c | 0, r | 0); }
+      else if (m.t === 'i' && typeof m.d === 'string') bind(null).input(m.d);
+      else if (m.t === 'r') { if (sess) sess.resize(m.cols | 0, m.rows | 0); else size = { cols: m.cols, rows: m.rows }; } // size before attach: keep it
       else if (m.t === 'cmd') core.runJob(String(m.id), m.cmd, (r) => deliver(r));
       else if (m.t === 'settings') applySettings(m.power);
       else if (m.t === 'ping') send({ t: 'pong' });
     });
     dc.onClosed(() => {
-      peers.delete(send); core.clients.delete(send);
+      clearTimeout(attachTimer);
+      peers.delete(send); sess && sess.clients.delete(send);
       power && power.setPhoneWanting(peers.size > 0);
       log(`phone disconnected (${peers.size} open)`);
       try { pc.close(); } catch {}
