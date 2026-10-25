@@ -58,6 +58,8 @@ class PowerBrain {
   // Right after you used it you'll likely need it again soon, so check in more often.
   nextCheckInMinutes() {
     const base = this.s.checkInMinutes;
+    const b = this.battery;
+    if (b && b.percent !== null && !b.onCharger && b.percent < this.s.minBattery) return Math.max(base, 10); // low battery: check in less often
     if (!this.s.smartCheckIn) return base;
     const sinceUse = this.sys.now() - Math.max(this.lastActivity, this.phoneLeft || 0, this.phoneSince || 0);
     if (sinceUse < 30 * 60e3) return Math.min(base, 1);
@@ -71,16 +73,18 @@ class PowerBrain {
     if (!s.enabled) return ['power brain off'];
     if (b.onCharger) return s.awakeOnCharger ? ['on charger'] : [];
     const r = [];
-    if (b.percent !== null && b.percent < s.minBattery) return r; // protect the battery first
+    // After waking up: up to 60 s to get Wi-Fi and reach the board. Once connected,
+    // 5 s is enough to receive any queued command. Nothing to do? Straight back to sleep.
+    const checking = this.firstContact ? now - (this.connectedAt || 0) < 5e3 : now - this.wokeAt < 60e3;
+    // Low battery: no staying awake for the phone or typing, but still do the short check-in,
+    // otherwise waking up would be pointless (it would sleep before reading any command).
+    if (b.percent !== null && b.percent < s.minBattery) return checking ? ['checking in'] : r;
     if (s.batteryMode === 'instant') r.push('instant mode');
     // A phone left open on a table shouldn't drain the battery forever:
     // it only counts for 15 minutes after it connected or you last typed.
     if (this.wantedByPhone && now - Math.max(this.phoneSince || 0, this.lastActivity) < 15 * 60e3) r.push('phone connected');
     if (this.jobsRunning > 0) r.push('job running');
     if (now - this.lastActivity < s.idleMinutes * 60e3) r.push('recent typing');
-    // After waking up: up to 60 s to get Wi-Fi and reach the relay. Once connected,
-    // 5 s is enough to receive any queued job. Nothing to do? Straight back to sleep.
-    const checking = this.firstContact ? now - (this.connectedAt || 0) < 5e3 : now - this.wokeAt < 60e3;
     if (checking) r.push('checking in');
     return r;
   }

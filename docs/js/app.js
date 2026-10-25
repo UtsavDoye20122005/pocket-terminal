@@ -9,6 +9,7 @@ import { Board, MAX_NOTE } from './board.js';
 import { search, riskOf, needsFill, askAi, PROVIDERS } from './helper.js';
 
 const $ = (id) => document.getElementById(id);
+const APP_VERSION = '5.3';
 const DEFAULT_BOARDS = ['https://ntfy.sh'];
 const ICE = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] }];
 const store = {
@@ -265,6 +266,7 @@ async function onNoteText(text) {
   if (!m || m.from !== 'mac' || typeof m.id !== 'string' || seen.has(m.id)) return;
   seen.add(m.id);
   if (localStorage.getItem('pt_debug')) console.log('note', m.type, m.state || '', new Date(m.ts).toISOString());
+  if (m.type === 'revoked') return revoked();
   if (m.type === 'status') {
     if (m.ts < mac.ts) return;
     Object.assign(mac, { state: m.state, ts: m.ts, nextWake: m.nextWake, checkIn: m.checkIn, power: m.power, name: m.name || mac.name });
@@ -318,6 +320,14 @@ async function connect({ hello = true } = {}) {
   answerTimer = setTimeout(() => { if (!dc || dc.readyState !== 'open') { linkState = 'waiting'; paint(); scheduleRetry(); } }, 15e3);
 }
 
+// The computer removed this phone (node pair.js --remove). Forget the key and say so.
+async function revoked() {
+  store.del('vault'); store.del('jobs'); store.del('ai'); await idbDel('session');
+  try { dc && dc.close(); pc && pc.close(); } catch {}
+  board && board.stop(); location.hash = ''; showNone();
+  $('noneErr').textContent = 'This phone was removed on your computer. To use it again, run  node pair.js  there and tap Scan QR code.';
+}
+
 // No answer? The computer may be asleep or briefly offline. Keep knocking while the app is open,
 // so it connects by itself at the computer's next check-in (each knock is 2 tiny encrypted notes).
 let retryN = 0, retryTimer = null;
@@ -341,6 +351,7 @@ function wire(ch) {
     else if (m.t === 'reset') { term.reset(); if (m.d) term.write(m.d); }
     else if (m.t === 'power') { livePower = m; paint(); }
     else if (m.t === 'hi') { if (m.os) setOs(m.os); }
+    else if (m.t === 'revoked') revoked();
     else if (m.t === 'result') gotResult(m.id, m.code, m.out);
   };
   ch.onclose = () => {
@@ -387,7 +398,8 @@ function paint() {
     banner = [`${name} is asleep`, `It checks in by itself in ${until(nci)}. Keep this open and it connects on its own, or send a command now and it runs at the check-in.${queuedText}`, true, []];
   } else {
     status = mac.ts ? `Last seen ${ago(mac.ts)}` : 'Waiting…';
-    banner = [`Waiting for ${name}`, `If it's asleep, it connects at its next check-in. If it's off or offline, commands you send run when it's back.${queuedText}`, true, []];
+    const longWait = retryN >= 4 ? " Still nothing after a few minutes? Check the computer is on and online. If you removed this phone there, go to ☰ → Settings → Unpair and pair again." : '';
+    banner = [`Waiting for ${name}`, `If it's asleep, it connects at its next check-in. If it's off or offline, commands you send run when it's back.${queuedText}${longWait}`, true, []];
   }
   $('macName').textContent = name;
   $('presence').className = 'presence ' + look;
@@ -697,6 +709,13 @@ function setupUi() {
   $('retryDirect').onclick = () => { lastAttempt = 0; connect(); $('sheet').classList.remove('show'); };
   $('copyTopic').onclick = async () => { try { await navigator.clipboard.writeText(S.notifyTopic); toast('Copied. Paste it in the ntfy app → Subscribe.'); } catch { toast(S.notifyTopic); } };
   $('lockNow').onclick = async () => { await idbDel('session'); location.reload(); };
+  $('appVer').textContent = 'v' + APP_VERSION + ' · checks for updates when you reload';
+  $('reloadApp').onclick = async () => {
+    $('reloadApp').textContent = 'Updating…';
+    try { const r = await navigator.serviceWorker?.getRegistration(); await r?.update(); } catch {}
+    try { for (const k of await caches.keys()) await caches.delete(k); } catch {}
+    location.reload();
+  };
   $('unpair').onclick = async () => { if (!confirm('Remove the pairing key from this phone?')) return; store.del('vault'); store.del('jobs'); store.del('ai'); await idbDel('session'); location.reload(); };
   renderJobs(); renderSnips();
 }

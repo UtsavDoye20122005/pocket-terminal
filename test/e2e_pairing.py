@@ -45,11 +45,12 @@ try:
     old=phone(); old.goto(APP+'#pair=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA&name=x')
     check(7, 'old-style reusable link does nothing', wait(lambda: not old.is_hidden('#gate-none'), 5))
     # remove my phone
+    lst=subprocess.run(['node','pair.js','--list'],cwd=R+'/agent',env=env,capture_output=True,text=True).stdout
+    print('   --list shows:', lst.strip().splitlines()[0])
     r=subprocess.run(['node','pair.js','--remove','iPhone (Safari)'],cwd=R+'/agent',env=env,capture_output=True,text=True).stdout
     check(8, 'pair.js --remove', 'Removed' in r and len(devices())==0)
     check(9, 'agent drops it within seconds', wait(lambda: 'phone removed' in open(S+'/agent.log').read(), 10))
-    me.reload(); time.sleep(12)
-    check(10, 'removed phone can no longer connect', not awake(me))
+    check(10, 'removed phone is told so and forgets its key', wait(lambda: not me.is_hidden('#gate-none') and 'removed on your computer' in me.inner_text('#noneErr'), 15) and me.evaluate("localStorage.getItem('pt_vault')") is None)
     b.close()
 finally:
   agent.terminate(); svc.terminate()

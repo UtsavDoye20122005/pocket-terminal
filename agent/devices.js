@@ -30,7 +30,8 @@ function startDevices({ core, power, log, dir }) {
     for (const [id, r] of running) {
       const d = devices.find((x) => x.id === id);
       if (!d || d.secret !== r.secret) {
-        r.t.stop(); running.delete(id); want.delete(id); conn.delete(id);
+        if (!d) Promise.resolve(r.t.revoke && r.t.revoke()).catch(() => {}).finally(() => r.t.stop()); else r.t.stop();
+        running.delete(id); want.delete(id); conn.delete(id);
         if (power) { power.setPhoneWanting(any(want)); power.setConnected(any(conn)); }
         log(`phone removed: ${r.name}`);
       }

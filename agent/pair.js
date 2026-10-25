@@ -44,7 +44,8 @@ save();
 
 if (flag('--list')) {
   if (!cfg.devices.length) console.log('No phones paired yet. Run:  node pair.js');
-  for (const d of cfg.devices) console.log(`• ${d.name}  (paired ${d.added.slice(0, 10)})`);
+  for (const d of cfg.devices) console.log(`• ${d.name}  (paired ${new Date(d.added).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })})`);
+  if (cfg.devices.length > 1) console.log('The last one is the newest.');
   process.exit(0);
 }
 if (flag('--remove')) {

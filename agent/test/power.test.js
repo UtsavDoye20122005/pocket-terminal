@@ -86,7 +86,13 @@ const last = () => calls.slice(-3).join(' | ');
   // 7. Low battery (below 20%) beats the phone → sleeps
   mac.percent = 15; await step();
   assert.ok(calls.includes('SLEEP')); assert.ok(calls.some((c) => c.startsWith('alarm')));
-  console.log('✓ battery 15%: sleeps even with phone open (still checks in)');
+  assert.ok(calls.some((c) => c === 'alarm +10m'), 'low battery: checks in every 10 min');
+  // waking up at 15% still reads the mailbox before sleeping again
+  calls.length = 0; brain.lastTick = t; t += 10 * 60e3; brain.sleeping = false; await brain.tick();
+  assert.deepStrictEqual(brain.reasons(), ['checking in']); assert.ok(!calls.includes('SLEEP'));
+  brain.setConnected(true); t += 6e3; brain.lastTick = t - 3e3; await brain.tick();
+  assert.ok(calls.includes('SLEEP'));
+  console.log('✓ battery 15%: sleeps even with phone open, still checks in every 10 min');
 
   // 8. Critical battery: no more alarms
   calls.length = 0; mac.percent = 8; brain.lastTick = t; t += 60e3; await brain.tick(); await step(100e3);

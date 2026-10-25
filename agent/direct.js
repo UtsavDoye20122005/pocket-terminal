@@ -177,6 +177,7 @@ function startDirect({ cfg, core, power, log, dir }) {
     },
     onPower: (s) => { for (const p of peers) p({ t: 'power', ...s }); },
     stop: () => { board.stop(); saveState(); },
+    revoke: async () => { for (const p of peers) p({ t: 'revoked' }); await post('revoked'); },
   };
 }
 
