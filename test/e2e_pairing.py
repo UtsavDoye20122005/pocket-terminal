@@ -29,17 +29,17 @@ try:
     me=phone(); match, out, link = ph.pair(me, R, env)
     check(1, 'my phone: same code on both screens, approved, connected', match and 'Paired "iPhone (Safari)"' in out and wait(lambda: awake(me), 40))
     check(2, 'the invite code is gone from the address bar', 'join=' not in me.url)
-    bro=phone(); bro.goto(link); time.sleep(8)
+    bro=phone(); ph.open_link(bro, link); time.sleep(8)
     check(3, "brother's phone, same QR again: no PIN screen, nothing paired", bro.is_hidden('#pairPad') and len(devices())==1 and 'awake' not in (bro.get_attribute('#presence','class') or ''))
     # two phones race for one fresh QR code
     pp, link2 = ph.start_invite(R, env)
-    a=phone(); c=phone(); a.goto(link2); time.sleep(0.5); c.goto(link2)
+    a=phone(); c=phone(); ph.open_link(a, link2); ph.open_link(c, link2)
     _, txt = ph.read_until(pp, 'second phone')
     check(4, 'two phones on one QR: computer refuses both', 'second phone' in txt and pp.wait(10)==1 and len(devices())==1)
     check(5, 'both racing phones are told nothing was paired', wait(lambda: 'Nothing was paired' in a.inner_text('#pairErr') and 'Nothing was paired' in c.inner_text('#pairErr'), 15))
     # you say no
     pp, link3 = ph.start_invite(R, env)
-    d=phone(); d.goto(link3); ph.read_until(pp, 'Its code:'); pp.stdin.write('n\n'); pp.stdin.flush()
+    d=phone(); ph.open_link(d, link3); ph.read_until(pp, 'Its code:'); pp.stdin.write('n\n'); pp.stdin.flush()
     check(6, 'you type n: phone is refused', wait(lambda: 'said no' in d.inner_text('#pairErr'), 15) and len(devices())==1)
     # old reusable links are refused
     old=phone(); old.goto(APP+'#pair=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA&name=x')

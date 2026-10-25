@@ -154,10 +154,13 @@ powershell -ExecutionPolicy Bypass -File install.ps1
 Both end by showing a **one-time QR code**.
 
 ### 3. Pair your phone
-1. Scan the QR code with your phone's camera.
-2. Your phone and computer show the same 6-digit code. If they match, type **y** on the computer.
-3. Choose a PIN on the phone.
-4. Tap **Share → Add to Home Screen** (iPhone) or **⋮ → Install app** (Android).
+1. Open the app link on your phone and install it: **Share → Add to Home Screen** (iPhone) or **⋮ → Install app** (Android).
+2. Open **Pocket Terminal** from your home screen and tap **Scan QR code**. Or tap **Paste pairing link** and paste the link `pair.js` prints.
+3. Your phone and computer show the same 6-digit code. If they match, type **y** on the computer.
+4. Choose a PIN on the phone.
+
+> **iPhone:** install first, then pair *inside* the home-screen app. iPhone keeps home-screen apps separate
+> from Safari, so a pairing made in Safari doesn't carry over. The app reminds you if you open the link in Safari.
 
 That's it. Open the app and you'll see your computer **awake, connected directly**.
 
@@ -275,6 +278,7 @@ cd agent && npm test        # power brain, Windows parsers, encryption, message 
 python3 test/e2e_direct.py  # full run: phone app in a headless browser ⇄ agent, with a sleeping computer
 python3 test/e2e_ask.py     # Ask: finder, AI (fake provider), danger checks, key encryption, Fix with AI
 python3 test/e2e_pairing.py # one-time QR, approval code, reused QR, two phones racing, removing a phone
+python3 test/e2e_scan.py    # iPhone home-screen app: scan the QR with the camera, or paste the link
 ```
 
 The end-to-end test pairs a phone, opens the direct link, runs commands, puts the computer to sleep,

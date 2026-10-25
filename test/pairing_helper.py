@@ -28,10 +28,19 @@ def phone_code(pg, t=20):
         if len(c) == 6: return c
         time.sleep(0.2)
 
+def open_link(pg, link):
+    """Open a pairing link like the phone's camera does. On an iPhone in Safari the app first suggests
+    the Home Screen app; tests continue in the browser."""
+    pg.goto(link)
+    try:
+        pg.wait_for_selector('#iosNote:not([hidden]), #joinBox:not([hidden]), #gate-none:not([hidden])', timeout=8000)
+        if pg.is_visible('#iosNote'): pg.click('#iosAnyway')
+    except Exception: pass
+
 def pair(pg, R, env, pin='123456', shot=None):
     """Returns (codes_matched, pair_output)."""
     pp, link = start_invite(R, env)
-    pg.goto(link); pg.wait_for_selector('#joinBox:not([hidden])')
+    open_link(pg, link); pg.wait_for_selector('#joinBox:not([hidden])')
     line, _ = read_until(pp, 'Its code:')
     mac_code = re.sub(r'\D', '', line.split(':', 1)[1])
     ph = phone_code(pg)

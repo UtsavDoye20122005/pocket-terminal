@@ -35,12 +35,11 @@ async function boot() {
   const h = new URLSearchParams(location.hash.slice(1));
   if (h.get('join') || h.get('pair')) {
     history.replaceState(null, '', location.pathname + location.search); // remove the code from the address bar
-    if (!h.get('join')) { show('gate-none'); toast('That is an old pairing code. Run  node pair.js  on your computer for a new one.'); return; }
-    const join = { invite: h.get('join'), name: (h.get('name') || 'your computer').slice(0, 40), boards: okBoards(h.get('boards')) || DEFAULT_BOARDS };
-    show('gate-pair'); joinFlow(join); return;
+    if (!h.get('join')) { showNone(); toast('That is an old pairing code. Run  node pair.js  on your computer for a new one.'); return; }
+    show('gate-pair'); joinFlow(joinFrom(h)); return;
   }
   const vault = store.get('vault');
-  if (!vault) return show('gate-none');
+  if (!vault) return showNone();
   const s = await idbGet('session');
   if (s && s.expires > Date.now() && s.topic === vault.topic) return start(s);
   $('lockTitle').textContent = `Unlock ${vault.name}`;
@@ -55,8 +54,75 @@ function deviceName() {
   return br ? `${dev} (${br})` : dev;
 }
 
+const joinFrom = (h) => ({ invite: h.get('join'), name: (h.get('name') || 'your computer').slice(0, 40), boards: okBoards(h.get('boards')) || DEFAULT_BOARDS });
+const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const standalone = navigator.standalone === true || matchMedia('(display-mode: standalone)').matches;
+
+// ---------- not paired: scan the QR inside the app, or paste the link ----------
+let noneReady = false;
+function showNone() {
+  show('gate-none');
+  if (noneReady) return; noneReady = true;
+  $('scanBtn').onclick = openScanner;
+  $('pasteBtn').onclick = () => { $('pasteForm').hidden = false; $('pasteIn').focus(); };
+  $('pasteForm').onsubmit = (e) => { e.preventDefault(); if (!handleLink($('pasteIn').value)) $('noneErr').textContent = "That isn't a Pocket Terminal pairing link. Run  node pair.js  on your computer and copy the link it shows."; };
+  $('scanClose').onclick = closeScanner;
+}
+function handleLink(text) {
+  let u; try { u = new URL(String(text).trim()); } catch { return false; }
+  const h = new URLSearchParams(u.hash.slice(1));
+  if (!h.get('join')) return false;
+  $('pasteIn').value = ''; $('noneErr').textContent = '';
+  show('gate-pair'); joinFlow(joinFrom(h), true);
+  return true;
+}
+let scanStream = null, scanRAF = 0;
+function loadJsQR() {
+  if (window.jsQR) return Promise.resolve();
+  return new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'vendor/jsQR.js'; s.onload = res; s.onerror = () => rej(new Error('scanner')); document.head.appendChild(s); });
+}
+async function openScanner() {
+  $('noneErr').textContent = '';
+  try {
+    await loadJsQR();
+    scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+  } catch (e) {
+    $('noneErr').textContent = e && e.name === 'NotAllowedError'
+      ? 'Camera access is blocked. Allow it (iPhone: Settings → Safari → Camera), or use Paste pairing link.'
+      : 'Could not open the camera here. Use Paste pairing link instead.';
+    return;
+  }
+  const v = $('scanVideo'); v.srcObject = scanStream; await v.play().catch(() => {});
+  $('scanHint').textContent = 'Point at the QR code on your computer'; $('scanner').hidden = false;
+  const c = document.createElement('canvas'), ctx = c.getContext('2d', { willReadFrequently: true });
+  let last = 0;
+  const tick = (t) => {
+    scanRAF = requestAnimationFrame(tick);
+    if (t - last < 180 || v.readyState < 2 || !v.videoWidth) return; last = t;
+    const w = Math.min(720, v.videoWidth), h = Math.round(v.videoHeight * w / v.videoWidth);
+    c.width = w; c.height = h; ctx.drawImage(v, 0, 0, w, h);
+    const r = window.jsQR(ctx.getImageData(0, 0, w, h).data, w, h, { inversionAttempts: 'attemptBoth' });
+    if (!r || !r.data) return;
+    if (handleLink(r.data)) { navigator.vibrate && navigator.vibrate(40); closeScanner(); }
+    else $('scanHint').textContent = "That QR code isn't a Pocket Terminal pairing code.";
+  };
+  scanRAF = requestAnimationFrame(tick);
+}
+function closeScanner() {
+  cancelAnimationFrame(scanRAF); scanStream?.getTracks().forEach((t) => t.stop()); scanStream = null;
+  $('scanVideo').srcObject = null; $('scanner').hidden = true;
+}
+
 // ---------- one-time pairing: the computer must approve this phone ----------
-async function joinFlow(j) {
+async function joinFlow(j, here = false) {
+  // iPhone: a pairing made in Safari stays in Safari. Send people to the Home Screen app first.
+  if (isIOS && !standalone && !here) {
+    $('pairTitle').textContent = `Pair with ${j.name}`; $('pairHint').textContent = '';
+    $('pairPad').hidden = $('pairDots').hidden = true; $('iosNote').hidden = false;
+    $('iosAnyway').onclick = () => { $('iosNote').hidden = true; joinFlow(j, true); };
+    return;
+  }
+  $('iosNote').hidden = true;
   $('pairTitle').textContent = `Pair with ${j.name}`;
   $('pairPad').hidden = $('pairDots').hidden = true; $('joinBox').hidden = false;
   const fail = (msg) => { $('joinBox').hidden = true; $('pairHint').textContent = ''; $('pairErr').textContent = msg; };

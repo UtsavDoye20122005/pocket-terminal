@@ -66,9 +66,10 @@ const started = Date.now();
 
 if (flag('--print-link')) console.log('LINK ' + link); // for tests
 else {
-  console.log('Scan this with your phone camera:\n');
+  console.log('iPhone: open Pocket Terminal from your Home Screen and tap "Scan QR code".');
+  console.log('Android / first time: scan this with the phone camera.\n');
   qrcode.generate(link, { small: true });
-  console.log(`\nOr open this link on the phone:\n${link}\n`);
+  console.log(`\nOr copy this link and use "Paste pairing link" in the app:\n${link}\n`);
   console.log(`This code works ONCE, for ${INVITE_MINUTES} minutes, and only after you approve the phone here.`);
 }
 console.log('Waiting for your phone…');

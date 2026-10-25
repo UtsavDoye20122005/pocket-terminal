@@ -26,6 +26,16 @@
     <img class="mark" src="icon.svg" alt="">
     <h1 id="pairTitle">Pair with your computer</h1>
     <p id="pairHint">Choose a PIN for this phone (6 or more digits).</p>
+    <div class="iosnote" id="iosNote" hidden>
+      <b>On iPhone, pair inside the Home Screen app</b>
+      <ol>
+        <li>Tap <b>Share</b> → <b>Add to Home Screen</b>.</li>
+        <li>Open <b>Pocket Terminal</b> from your Home Screen.</li>
+        <li>Tap <b>Scan QR code</b> and scan the same code again. It still works.</li>
+      </ol>
+      <p>iPhone keeps Home Screen apps separate from Safari, so pairing here would not carry over.</p>
+      <button class="btn ghost small" id="iosAnyway" type="button">Pair in Safari anyway</button>
+    </div>
     <div class="join" id="joinBox" hidden>
       <small>This phone's code</small>
       <div class="jcode" id="joinCode">··· ···</div>
@@ -58,9 +68,18 @@
     <p>Your computer's terminal on this phone, from anywhere. It even works with the lid closed, and everything is end-to-end encrypted.</p>
     <ol class="steps">
       <li><b>Install on your computer</b>Mac: <code>bash install.sh</code><br>Windows: <code>install.ps1</code></li>
-      <li><b>Scan the QR code</b>Use this phone's camera. It works once.</li>
+      <li><b>Scan the QR code</b>Tap Scan QR code below. Each code works once.</li>
       <li><b>Approve it on the computer</b>Check the 6-digit code matches, type y, then choose a PIN.</li>
     </ol>
+    <div class="pairopts">
+      <button class="btn" id="scanBtn" type="button">Scan QR code</button>
+      <button class="btn ghost" id="pasteBtn" type="button">Paste pairing link</button>
+    </div>
+    <form class="row2 pasteform" id="pasteForm" hidden>
+      <input class="field-in" id="pasteIn" placeholder="https://…#join=…" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+      <button class="btn">Pair</button>
+    </form>
+    <p class="err" id="noneErr" role="alert"></p>
   </div>
 </div>
 
@@ -186,6 +205,12 @@
   </div>
 </div>
 <div class="toast" id="toast" role="status"></div>
+<div class="scanner" id="scanner" hidden>
+  <video id="scanVideo" playsinline muted></video>
+  <div class="scanframe"></div>
+  <p id="scanHint">Point at the QR code on your computer</p>
+  <button class="btn ghost" id="scanClose" type="button">Cancel</button>
+</div>
 
 <script src="vendor/xterm.js"></script>
 <script src="vendor/addon-fit.js"></script>
