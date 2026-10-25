@@ -119,7 +119,7 @@ You need a **Mac or a Windows 10/11 PC** with [Node.js 18.20+](https://nodejs.or
 It takes about 5 minutes.
 
 ### 1. The phone app
-The app lives at **[pocket-terminal.vercel.app](https://pocket-terminal.vercel.app)**. Nothing to do here:
+The app lives at **[utsavdoye20122005.github.io/pocket-terminal](https://utsavdoye20122005.github.io/pocket-terminal/)**. Nothing to do here:
 the installer uses it automatically.
 
 > **Want your own copy instead?** The app's code is what handles your key, so the most careful setup is

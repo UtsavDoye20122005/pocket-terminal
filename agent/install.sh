@@ -46,7 +46,7 @@ fi
 sudo -n /usr/bin/pmset -a disablesleep 0 && echo "Power control ready ✅"
 
 step 3/4 "Pairing key"
-# The original repo uses the official app (pocket-terminal.vercel.app).
+# The original repo uses the official app (utsavdoye20122005.github.io/pocket-terminal).
 # If you forked it, your phone app lives on YOUR GitHub Pages. Use it automatically.
 APP_ARGS=()
 ORIGIN="$(git -C "$DIR/.." remote get-url origin 2>/dev/null || true)"

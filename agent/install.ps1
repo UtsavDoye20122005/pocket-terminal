@@ -33,7 +33,7 @@ if ((powercfg /a | Out-String) -match 'S0 Low Power Idle') {
 Write-Host 'Power settings ready.'
 
 Step '3/4' 'Pairing key'
-# The original repo uses the official app (pocket-terminal.vercel.app).
+# The original repo uses the official app (utsavdoye20122005.github.io/pocket-terminal).
 # If you forked it, your phone app lives on YOUR GitHub Pages. Use it automatically.
 $appArgs = @()
 $origin = ''

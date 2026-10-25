@@ -23,7 +23,7 @@ const { codeFor, wrapFor } = require('./lib/pairing');
 
 const DIR = process.env.POCKET_HOME || path.join(os.homedir(), '.pocket-terminal');
 const FILE = path.join(DIR, 'direct.json');
-const DEFAULT_APP = 'https://pocket-terminal.vercel.app/';
+const DEFAULT_APP = 'https://utsavdoye20122005.github.io/pocket-terminal/';
 const DEFAULT_BOARDS = ['https://ntfy.sh'];
 const INVITE_MINUTES = 10;
 
@@ -33,7 +33,6 @@ const flag = (name) => args.includes(name);
 
 let cfg = {}; try { cfg = JSON.parse(fs.readFileSync(FILE, 'utf8')); } catch {}
 cfg.name = arg('--name') || cfg.name || os.hostname().replace(/\.local$/, '');
-if (/utsavdoye20122005\.github\.io\/pocket-terminal/i.test(cfg.appUrl || '')) cfg.appUrl = DEFAULT_APP; // moved to a cleaner address
 cfg.appUrl = arg('--app-url') || process.env.POCKET_APP_URL || cfg.appUrl || DEFAULT_APP;
 cfg.boards = cfg.boards || DEFAULT_BOARDS;
 const extra = arg('--board'); if (extra && !cfg.boards.includes(extra)) cfg.boards.push(extra.replace(/\/+$/, ''));
