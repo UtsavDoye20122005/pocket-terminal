@@ -39,8 +39,27 @@ const last = () => calls.slice(-3).join(' | ');
   brain.firstContact = true; brain.connectedAt = t; // relay reached
   await step(3e3); assert.ok(!calls.includes('SLEEP'), 'gives the relay 5 s to send work');
   await step(3e3);
-  assert.strictEqual(last(), 'nosleep 0 | alarm +2m | SLEEP');
+  assert.strictEqual(calls.slice(-2).join(' | '), 'alarm +2m | SLEEP');
   console.log('✓ on battery + idle: quick check-in (5 s after connecting), 2 min alarm, sleeps');
+
+  // 2b. macOS sleeps on its own before the brain acts: an alarm must already be set
+  {
+    const c2 = []; let t2 = 200 * 3600e3; const m2 = { percent: 70, onCharger: false, lid: false };
+    const sys2 = { ...sys, now: () => t2, battery: async () => ({ percent: m2.percent, onCharger: m2.onCharger }), lidClosed: async () => m2.lid,
+      scheduleWake: async (d) => { c2.push(['set', d.getTime()]); return { ok: true }; }, cancelWake: async () => { c2.push(['cancel']); return { ok: true }; },
+      setNoSleep: async () => ({ ok: true }), sleepNow: async () => { c2.push(['SLEEP']); return { ok: true }; } };
+    const b2 = new PowerBrain({ smartCheckIn: false }, { log: () => {} }, sys2);
+    b2.lastTick = t2; b2.wokeAt = t2 - 600e3; await b2.tick(); // lid open, idle, on battery: allowed to sleep
+    const armed = c2.filter((x) => x[0] === 'set');
+    assert.ok(armed.length === 1 && armed[0][1] - t2 <= 2 * 60e3, 'alarm armed ahead while lid open');
+    for (let i = 0; i < 30; i++) { t2 += 3e3; b2.lastTick = t2 - 3e3; await b2.tick(); } // 90 s awake
+    const live = c2.filter((x) => x[0] === 'set').pop()[1];
+    assert.ok(live - t2 > 0 && live - t2 <= 2 * 60e3, 'alarm keeps rolling forward');
+    assert.ok(c2.filter((x) => x[0] === 'set').length <= 3, 'without spamming pmset');
+    m2.onCharger = true; t2 += 3e3; b2.lastTick = t2 - 3e3; await b2.tick();
+    assert.strictEqual(c2.pop()[0], 'cancel'); assert.strictEqual(b2.alarm, null);
+    console.log('✓ macOS sleeping on its own: a wake alarm is always set ahead (cancelled on charger)');
+  }
 
   // 3. Wakes from the alarm (big clock jump) → onWake, stays awake to check in
   calls.length = 0; brain.lastTick = t; t += 2 * 60e3; brain.sleeping = false; await brain.tick();

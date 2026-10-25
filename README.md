@@ -279,6 +279,7 @@ python3 test/e2e_direct.py  # full run: phone app in a headless browser ⇄ agen
 python3 test/e2e_ask.py     # Ask: finder, AI (fake provider), danger checks, key encryption, Fix with AI
 python3 test/e2e_pairing.py # one-time QR, approval code, reused QR, two phones racing, removing a phone
 python3 test/e2e_scan.py    # iPhone home-screen app: scan the QR with the camera, or paste the link
+python3 test/e2e_autoconnect.py # the Mac falls asleep on its own; the app reconnects by itself when it wakes
 ```
 
 The end-to-end test pairs a phone, opens the direct link, runs commands, puts the computer to sleep,

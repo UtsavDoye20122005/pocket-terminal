@@ -121,6 +121,10 @@ class PowerBrain {
       }
       this.hooks.onStatus && this.hooks.onStatus(this.status());
 
+      // macOS can fall asleep on its own (closing the lid on battery does it instantly), before
+      // this brain gets a turn. So while sleep is allowed, always keep a wake-up alarm set ahead.
+      await this.armAhead(stayAwake);
+
       // Idle on battery with the lid closed: set the alarm and go to sleep.
       if (!stayAwake && this.s.enabled && !this.battery.onCharger && await this.sys.lidClosed()) {
         await this.goToSleep();
@@ -130,6 +134,21 @@ class PowerBrain {
     } finally {
       this.busy = false;
     }
+  }
+
+  async armAhead(stayAwake) {
+    const b = this.battery, now = this.sys.now();
+    const want = !stayAwake && this.s.enabled && !b.onCharger && (b.percent === null || b.percent >= this.s.stopAlarmsBelow);
+    if (!want) {
+      if (this.alarm && this.alarm.getTime() > now) { await this.sys.cancelWake(this.alarm); }
+      this.alarm = null; return;
+    }
+    const every = this.nextCheckInMinutes() * 60e3;
+    if (this.alarm && this.alarm.getTime() - now > Math.min(45e3, every / 2)) return; // still far enough ahead
+    if (this.alarm && this.alarm.getTime() > now) await this.sys.cancelWake(this.alarm);
+    this.alarm = new Date(now + every);
+    const r = await this.sys.scheduleWake(this.alarm);
+    if (!r.ok) this.hooks.log('could not set wake alarm (sudo rule missing?): ' + String(r.err || '').trim());
   }
 
   async goToSleep() {

@@ -51,6 +51,7 @@ function deviceName() {
   const ua = navigator.userAgent;
   const dev = /iPad/.test(ua) ? 'iPad' : /iPhone/.test(ua) ? 'iPhone' : /Android/.test(ua) ? 'Android phone' : /Mac/.test(ua) ? 'Mac browser' : /Windows/.test(ua) ? 'Windows browser' : 'Browser';
   const br = /CriOS|Chrome/.test(ua) && !/Edg/.test(ua) ? 'Chrome' : /FxiOS|Firefox/.test(ua) ? 'Firefox' : /Edg/.test(ua) ? 'Edge' : /Safari/.test(ua) ? 'Safari' : '';
+  if (standalone) return `${dev} (app)`;
   return br ? `${dev} (${br})` : dev;
 }
 
@@ -252,7 +253,8 @@ function start(session) {
   setTimeout(() => connect(), 400);
   setInterval(paint, 1000);
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState !== 'visible') return;
+    if (document.visibilityState !== 'visible') { clearTimeout(retryTimer); return; }
+    retryN = 0;
     board.restart(); // phones kill background connections
     if (!dc || dc.readyState !== 'open') connect();
   });
@@ -311,14 +313,24 @@ async function connect({ hello = true } = {}) {
     if (pc !== mine) return; // a newer attempt replaced this one
     await post('offer', { oid: mine.oid, sdp: mine.localDescription.sdp });
     offerAt = Date.now();
-  } catch (e) { linkState = 'noboard'; toast(e.message); paint(); return; }
+  } catch (e) { linkState = 'noboard'; toast(e.message); paint(); scheduleRetry(); return; }
   clearTimeout(answerTimer);
-  answerTimer = setTimeout(() => { if (!dc || dc.readyState !== 'open') { linkState = 'waiting'; paint(); } }, 15e3);
+  answerTimer = setTimeout(() => { if (!dc || dc.readyState !== 'open') { linkState = 'waiting'; paint(); scheduleRetry(); } }, 15e3);
+}
+
+// No answer? The computer may be asleep or briefly offline. Keep knocking while the app is open,
+// so it connects by itself at the computer's next check-in (each knock is 2 tiny encrypted notes).
+let retryN = 0, retryTimer = null;
+function scheduleRetry() {
+  clearTimeout(retryTimer);
+  if (document.visibilityState !== 'visible') return;
+  const ms = [45e3, 60e3, 90e3, 120e3][Math.min(retryN++, 3)];
+  retryTimer = setTimeout(() => { if (!dc || dc.readyState !== 'open') { lastAttempt = 0; connect(); } }, ms);
 }
 
 function wire(ch) {
   ch.onopen = () => {
-    dc = ch; linkState = 'direct'; clearTimeout(answerTimer); clearTimeout(openTimer);
+    dc = ch; linkState = 'direct'; clearTimeout(answerTimer); clearTimeout(openTimer); clearTimeout(retryTimer); retryN = 0;
     mac.state = 'online'; mac.ts = Date.now();
     fit.fit(); sendTerm({ t: 'r', cols: term.cols, rows: term.rows });
     paint(); toast('Connected directly · end-to-end encrypted');
