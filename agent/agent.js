@@ -42,7 +42,7 @@ function main() {
 
   const core = createCore({ log, power });
   if (mode === 'direct') {
-    transport = require('./direct').startDirect({ cfg: direct, core, power, log, dir: DIR });
+    transport = require('./devices').startDevices({ core, power, log, dir: DIR });
   } else {
     transport = require('./relay-transport').startRelay({ cfg: relay, core, power, log, dir: DIR });
   }

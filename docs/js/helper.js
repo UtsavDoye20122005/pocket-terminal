@@ -160,11 +160,15 @@ export const needsFill = (cmd) => /<[^<>\s][^<>]*>/.test(cmd);
 
 // ---------- AI ----------
 export const PROVIDERS = {
-  groq: { label: 'Groq (free key)', url: 'https://api.groq.com/openai/v1/chat/completions', model: 'llama-3.3-70b-versatile', keyUrl: 'console.groq.com/keys' },
-  gemini: { label: 'Google Gemini (free key)', url: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', model: 'gemini-2.5-flash', keyUrl: 'aistudio.google.com/apikey' },
-  openai: { label: 'OpenAI', url: 'https://api.openai.com/v1/chat/completions', model: 'gpt-4.1-mini', keyUrl: 'platform.openai.com/api-keys' },
+  openrouter: { label: 'OpenRouter: one key, every model (GPT, Claude, Gemini, Llama…)', url: 'https://openrouter.ai/api/v1/chat/completions', model: 'openai/gpt-4.1-mini', keyUrl: 'openrouter.ai/keys' },
+  openai: { label: 'OpenAI (ChatGPT models)', url: 'https://api.openai.com/v1/chat/completions', model: 'gpt-4.1-mini', keyUrl: 'platform.openai.com/api-keys' },
   anthropic: { label: 'Anthropic (Claude)', url: 'https://api.anthropic.com/v1/messages', model: 'claude-haiku-5-5', keyUrl: 'console.anthropic.com' },
-  openrouter: { label: 'OpenRouter', url: 'https://openrouter.ai/api/v1/chat/completions', model: 'openrouter/auto', keyUrl: 'openrouter.ai/keys' },
+  gemini: { label: 'Google Gemini (free key)', url: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', model: 'gemini-2.5-flash', keyUrl: 'aistudio.google.com/apikey' },
+  groq: { label: 'Groq (free key)', url: 'https://api.groq.com/openai/v1/chat/completions', model: 'llama-3.3-70b-versatile', keyUrl: 'console.groq.com/keys' },
+  mistral: { label: 'Mistral', url: 'https://api.mistral.ai/v1/chat/completions', model: 'mistral-small-latest', keyUrl: 'console.mistral.ai' },
+  deepseek: { label: 'DeepSeek', url: 'https://api.deepseek.com/chat/completions', model: 'deepseek-chat', keyUrl: 'platform.deepseek.com' },
+  xai: { label: 'xAI (Grok)', url: 'https://api.x.ai/v1/chat/completions', model: 'grok-3-mini', keyUrl: 'console.x.ai' },
+  custom: { label: 'Custom (any OpenAI-compatible API)', url: '', model: '', keyUrl: '' },
 };
 
 const OS_NAME = { darwin: 'macOS (zsh)', linux: 'Linux (bash)', win32: 'Windows (PowerShell 5.1)' };
@@ -172,6 +176,7 @@ function systemPrompt(os) {
   return `You turn plain-English requests into terminal commands for ${OS_NAME[os] || OS_NAME.darwin}.
 The command runs non-interactively in the user's home folder. It cannot ask questions or open editors (no vim, nano, less, top without -l).
 The user may also type a half-remembered command; then complete or fix it.
+The user may also paste a command that failed with its output; then explain the cause in the note field and give the fixed command.
 Reply with JSON only, no markdown:
 {"options":[{"command":"...","explain":"what it does, one short plain sentence","risk":"safe|careful|danger"}],"note":"optional, only if something is unclear"}
 Give 1 option, or up to 3 if there are clearly different ways. Prefer safe, read-only commands. Use placeholders like <folder> only when you truly cannot guess.
@@ -190,7 +195,9 @@ function parseReply(text) {
 
 export async function askAi(cfg, request, os, signal) {
   const p = PROVIDERS[cfg.provider] || PROVIDERS.groq;
-  const url = cfg.url || p.url, model = cfg.model || p.model, sys = systemPrompt(os);
+  const url = (cfg.provider === 'custom' ? cfg.url : p.url) || cfg.url, model = cfg.model || p.model, sys = systemPrompt(os);
+  if (!/^https:\/\//.test(url || '')) throw new Error('Set the API address (https://…) in Settings → AI helper.');
+  if (!model) throw new Error('Set a model name in Settings → AI helper.');
   let res;
   if (cfg.provider === 'anthropic') {
     res = await fetch(url, { method: 'POST', signal, headers: { 'content-type': 'application/json', 'x-api-key': cfg.key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },

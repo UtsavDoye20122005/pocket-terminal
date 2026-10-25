@@ -65,3 +65,22 @@ export async function unlockSecret(vault, pin) {
     return dec.decode(plain);
   } catch { return null; }
 }
+
+// ----- one-time pairing (twin of agent/lib/pairing.js) -----
+const PAIR_SALT = enc.encode('pocket-terminal/pair-v1');
+export async function newPairKey() {
+  const kp = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveBits']);
+  return { kp, pub: b64u(await crypto.subtle.exportKey('raw', kp.publicKey)) };
+}
+export async function pairCode(pubB64) {
+  const h = await crypto.subtle.digest('SHA-256', fromB64u(pubB64));
+  return String(new DataView(h).getUint32(0) % 1e6).padStart(6, '0');
+}
+export async function unwrapJoin(kp, nonce, w) {
+  const epub = await crypto.subtle.importKey('raw', fromB64u(w.epub), { name: 'ECDH', namedCurve: 'P-256' }, false, []);
+  const shared = await crypto.subtle.deriveBits({ name: 'ECDH', public: epub }, kp.privateKey, 256);
+  const base = await crypto.subtle.importKey('raw', shared, 'HKDF', false, ['deriveKey']);
+  const key = await crypto.subtle.deriveKey({ name: 'HKDF', hash: 'SHA-256', salt: PAIR_SALT, info: enc.encode('wrap') }, base, { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
+  const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: fromB64u(w.iv), additionalData: enc.encode('join:' + nonce) }, key, fromB64u(w.ct));
+  return JSON.parse(dec.decode(plain));
+}

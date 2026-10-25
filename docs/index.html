@@ -26,6 +26,11 @@
     <img class="mark" src="icon.svg" alt="">
     <h1 id="pairTitle">Pair with your computer</h1>
     <p id="pairHint">Choose a PIN for this phone (6 or more digits).</p>
+    <div class="join" id="joinBox" hidden>
+      <small>This phone's code</small>
+      <div class="jcode" id="joinCode">··· ···</div>
+      <div class="wait"><span></span><span></span><span></span></div>
+    </div>
     <div class="dots" id="pairDots" aria-live="polite"></div>
     <div class="pad" id="pairPad"></div>
     <p class="err" id="pairErr" role="alert"></p>
@@ -53,8 +58,8 @@
     <p>Your computer's terminal on this phone, from anywhere. It even works with the lid closed, and everything is end-to-end encrypted.</p>
     <ol class="steps">
       <li><b>Install on your computer</b>Mac: <code>bash install.sh</code><br>Windows: <code>install.ps1</code></li>
-      <li><b>Scan the QR code</b>Use this phone's camera.</li>
-      <li><b>Choose a PIN</b>Then Share → Add to Home Screen.</li>
+      <li><b>Scan the QR code</b>Use this phone's camera. It works once.</li>
+      <li><b>Approve it on the computer</b>Check the 6-digit code matches, type y, then choose a PIN.</li>
     </ol>
   </div>
 </div>
@@ -167,14 +172,16 @@
       <form class="aiform" id="aiForm" hidden>
         <p class="hint">Turns plain English into commands. Uses <b>your own key</b>, kept encrypted on this phone. Only what you type in <b>Ask</b> goes to the AI, straight from this phone. Your computer, its files and command output are never sent.</p>
         <select class="field-in plain" id="aiProvider"></select>
+        <input class="field-in" id="aiUrl" placeholder="https://…/v1/chat/completions" autocomplete="off" autocapitalize="off" spellcheck="false" hidden>
         <input class="field-in" id="aiKey" type="password" placeholder="API key" autocomplete="off" spellcheck="false">
         <input class="field-in" id="aiModel" placeholder="model" autocomplete="off" autocapitalize="off" spellcheck="false">
         <p class="hint" id="aiKeyHelp"></p>
-        <div class="row2"><button class="btn">Save</button><button type="button" class="btn ghost" id="aiOff">Turn off</button></div>
+        <div class="row2"><button class="btn">Save</button><button type="button" class="btn ghost" id="aiTest">Test</button><button type="button" class="btn ghost" id="aiOff">Turn off</button></div>
+        <p class="note" id="aiNote"></p>
       </form>
       <div class="field"><div>Text size</div><div class="seg"><button id="smaller" aria-label="Smaller text">A−</button><button id="bigger" aria-label="Bigger text">A+</button></div></div>
       <div class="field"><div>Lock now<small>Asks for your PIN next time</small></div><button class="btn small ghost" id="lockNow">Lock</button></div>
-      <div class="field"><div>Unpair this phone<small>Removes the key from this phone. To lock out every phone, run <code>node pair.js --new</code> on the computer.</small></div><button class="btn small danger" id="unpair">Unpair</button></div>
+      <div class="field"><div>Unpair this phone<small>Removes the key from this phone. To lock it out from the computer instead, run <code>node pair.js --remove</code>.</small></div><button class="btn small danger" id="unpair">Unpair</button></div>
     </div>
   </div>
 </div>

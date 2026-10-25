@@ -45,6 +45,7 @@ for your commands, then goes back to sleep.
 | ⚡ **One-tap commands** | Save your common commands as chips above the keyboard. |
 | 📬 **Send now, runs later** | Computer asleep? Send the command anyway; the reply comes back to your phone. |
 | 🔋 **Battery-safe** | It never stays awake below 20% battery and stops waking below 10%. |
+| 🛡️ **Only phones you approve** | Each QR code works once. The computer shows a 6-digit code and you type `y`. Remove any phone later. |
 | 📱 **Feels like an app** | PIN lock, home-screen install, works on iPhone and Android. |
 
 ## 🧭 How it works
@@ -53,8 +54,10 @@ for your commands, then goes back to sleep.
   <img src="docs/readme/how-it-works.svg" alt="Phone and computer meet through an encrypted note on a free message board, then talk directly" width="100%">
 </p>
 
-1. **Pairing (once).** Your computer makes a secret key and shows it as a QR code. Your phone scans
-   it. Now both devices share a key that never leaves them.
+1. **Pairing (once per phone).** Your computer shows a one-time QR code. Your phone scans it and both
+   screens show the same 6-digit code; you type `y` on the computer. The computer then gives that phone
+   its own secret key, sent wrapped with a fresh key exchange (ECDH), so even someone who photographed
+   the QR code can't read it. The QR code is then dead.
 2. **Finding each other.** Both use a free public message board ([ntfy.sh](https://ntfy.sh)) as a
    private mailbox. The mailbox name and every note in it are scrambled with your key.
 3. **Direct link.** The phone leaves a note saying "here's how to reach me", the computer answers,
@@ -92,9 +95,13 @@ Tap **✦** and type what you want, either in plain English or the bit of the co
 - **Built-in finder (free, offline).** 70+ everyday commands for macOS, Windows and Linux, plus your
   saved commands and the ones you ran before. Type `docker`, `git sta` or "free up port 3000" and the
   matches appear as you type, with obvious blanks already filled in (`3000`, `~/Downloads`).
-- **AI helper (optional).** Anything the finder doesn't know goes to an AI with **your own key**.
-  [Groq](https://console.groq.com/keys) and [Google Gemini](https://aistudio.google.com/apikey) give free keys;
-  OpenAI, Anthropic and OpenRouter work too. It knows whether your computer runs zsh or PowerShell.
+- **AI helper (optional), any model you like.** Anything the finder doesn't know goes to an AI with
+  **your own key**: ChatGPT models (OpenAI), Claude (Anthropic), Gemini, Groq, Mistral, DeepSeek, Grok,
+  [OpenRouter](https://openrouter.ai/keys) (one key for all of them), or **any OpenAI-compatible API** via
+  *Custom*. [Groq](https://console.groq.com/keys) and [Gemini](https://aistudio.google.com/apikey) keys are free.
+  It knows whether your computer runs zsh or PowerShell. A **Test** button checks your key.
+- **✦ Fix with AI.** When a command fails, tap *Fix with AI* in **Commands**. It sends that command and
+  the end of its output, and you get back what went wrong and the command to run instead.
 - **Nothing runs by itself.** You see each command, a one-line explanation and a
   <code>safe</code> / <code>careful</code> / <code>danger</code> label. The app checks every command itself
   as well, so it doesn't just trust the AI. Danger needs a second tap. You can edit any command
@@ -111,13 +118,14 @@ Set it up in **☰ → Settings → AI helper**.
 You need a **Mac or a Windows 10/11 PC** with [Node.js 18.20+](https://nodejs.org), and a phone.
 It takes about 5 minutes.
 
-### 1. Get your own copy of the phone app
-1. Click **Fork** at the top of this page.
-2. In your fork, go to **Settings → Pages** and pick **Deploy from a branch**, branch `main`, folder `/docs`. Click **Save**.
-3. After about a minute, your app is live at `https://<your-username>.github.io/pocket-terminal/`.
+### 1. The phone app
+The app lives at **[pocket-terminal.vercel.app](https://pocket-terminal.vercel.app)**. Nothing to do here:
+the installer uses it automatically.
 
-> Why your own copy? The app's code is what handles your key. With your own fork, nobody else can
-> change it. See [SECURITY.md](SECURITY.md).
+> **Want your own copy instead?** The app's code is what handles your key, so the most careful setup is
+> your own: click **Fork**, then in your fork go to **Settings → Pages → Deploy from a branch**, branch
+> `main`, folder `/docs`. The installer notices the fork and uses `https://<you>.github.io/pocket-terminal/`.
+> See [SECURITY.md](SECURITY.md).
 
 ### 2. Install on your computer
 
@@ -143,12 +151,13 @@ powershell -ExecutionPolicy Bypass -File install.ps1
 <tr><td>Asks for your Mac password once (to manage sleep).</td><td>Starts at every sign-in, hidden.</td></tr>
 </table>
 
-Both end by showing a **QR code**.
+Both end by showing a **one-time QR code**.
 
 ### 3. Pair your phone
 1. Scan the QR code with your phone's camera.
-2. Choose a PIN.
-3. Tap **Share → Add to Home Screen** (iPhone) or **⋮ → Install app** (Android).
+2. Your phone and computer show the same 6-digit code. If they match, type **y** on the computer.
+3. Choose a PIN on the phone.
+4. Tap **Share → Add to Home Screen** (iPhone) or **⋮ → Install app** (Android).
 
 That's it. Open the app and you'll see your computer **awake, connected directly**.
 
@@ -162,8 +171,9 @@ That's it. Open the app and you'll see your computer **awake, connected directly
 | Save a command | Tap **+ Save a command**, or **Save** on any suggestion |
 | Run something while it sleeps | Type it in the "asleep" card; the reply shows in **☰ → Commands** |
 | Get a ping when it finishes | Install the free [ntfy app](https://ntfy.sh) and subscribe to the topic in **☰ → Settings** |
-| Show the QR code again | `node pair.js` (in the `agent` folder) |
-| Lock out every paired phone | `node pair.js --new`, then restart the agent |
+| Pair another phone | `node pair.js` (in the `agent` folder), a fresh one-time QR code |
+| See which phones can connect | `node pair.js --list` |
+| Lock one phone out | `node pair.js --remove "iPhone (Safari)"` (or `--remove all`). Works within seconds |
 | See what it's doing | `tail -f ~/.pocket-terminal/agent.log` |
 | Uninstall | `bash uninstall.sh` (Mac) · `uninstall.ps1` (Windows); add `--purge` / `-Purge` to delete the key |
 
@@ -173,6 +183,9 @@ That's it. Open the app and you'll see your computer **awake, connected directly
   are exchanged inside the authenticated notes, so nobody can sit in the middle.
 - **Private by design:** the message board and STUN servers see only scrambled text and IP addresses.
   Command text is never written to logs. Notifications never contain your commands.
+- **Only approved phones:** a QR code works once, for 10 minutes, and only after you type `y` on the
+  computer next to a matching 6-digit code. If two phones try the same code, both are refused.
+  Every phone has its own key, so you can remove one without touching the others.
 - **Locked phone:** your key is stored encrypted with your PIN, and 10 wrong tries wipe it.
 - **AI is opt-in:** off until you add your own key. It only sees what you type in Ask, and never runs
   anything without your tap.
@@ -217,8 +230,9 @@ Your real numbers are in the log.
 
 <details><summary><b>Can someone else control my computer?</b></summary>
 
-Only someone with your pairing key: your unlocked phone, or the QR code. If you think it leaked, run
-`node pair.js --new` and every old phone is locked out instantly.
+Only a phone you approved on the computer itself. A QR code works once, so a photo of it is useless
+afterwards, and a second phone trying the same code cancels the pairing. Lost a phone? Run
+`node pair.js --remove "<its name>"` and it is locked out within seconds.
 </details>
 
 <details><summary><b>Does it work on Linux?</b></summary>
@@ -245,7 +259,8 @@ agent/            runs on your computer
   power.js          the power brain: when to stay awake, when to sleep
   platform/         sleep/wake switches for macOS and Windows
   lib/              encryption (HKDF + AES-256-GCM), message board, terminal
-  pair.js           pairing QR code
+  pair.js           one-time pairing QR + approve / list / remove phones
+  devices.js        one private mailbox per paired phone
   install.sh / install.ps1
 docs/             the phone app: static files served by GitHub Pages
   js/helper.js      Ask: built-in command finder, safety check, AI providers
@@ -258,7 +273,8 @@ relay/            optional self-hosted relay
 ```bash
 cd agent && npm test        # power brain, Windows parsers, encryption, message boards
 python3 test/e2e_direct.py  # full run: phone app in a headless browser ⇄ agent, with a sleeping computer
-python3 test/e2e_ask.py     # Ask: finder, AI (fake provider), danger checks, key encryption
+python3 test/e2e_ask.py     # Ask: finder, AI (fake provider), danger checks, key encryption, Fix with AI
+python3 test/e2e_pairing.py # one-time QR, approval code, reused QR, two phones racing, removing a phone
 ```
 
 The end-to-end test pairs a phone, opens the direct link, runs commands, puts the computer to sleep,

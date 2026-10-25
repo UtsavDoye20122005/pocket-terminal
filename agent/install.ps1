@@ -33,12 +33,13 @@ if ((powercfg /a | Out-String) -match 'S0 Low Power Idle') {
 Write-Host 'Power settings ready.'
 
 Step '3/4' 'Pairing key'
-# If you forked this repo, your phone app lives on YOUR GitHub Pages. Use it automatically.
+# The original repo uses the official app (pocket-terminal.vercel.app).
+# If you forked it, your phone app lives on YOUR GitHub Pages. Use it automatically.
 $appArgs = @()
 $origin = ''
 try { $origin = (git -C (Split-Path $PSScriptRoot) remote get-url origin 2>$null) } catch {}
-if ($origin -match 'github\.com[:/]([^/]+)/([^/.]+)') { $appArgs = @('--app-url', "https://$($Matches[1].ToLower()).github.io/$($Matches[2])/") }
-& $node pair.js --link-only @appArgs | Out-Null
+if ($origin -match 'github\.com[:/]([^/]+)/([^/.]+)' -and $origin -notmatch 'utsavdoye20122005/pocket-terminal') { $appArgs = @('--app-url', "https://$($Matches[1].ToLower()).github.io/$($Matches[2])/") }
+& $node pair.js --list @appArgs | Out-Null
 
 Step '4/4' 'Starting the agent now and at every sign-in'
 $log = Join-Path $Dir 'agent.log'

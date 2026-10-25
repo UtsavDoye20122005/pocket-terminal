@@ -46,14 +46,15 @@ fi
 sudo -n /usr/bin/pmset -a disablesleep 0 && echo "Power control ready ✅"
 
 step 3/4 "Pairing key"
-# If you forked this repo, your phone app lives on YOUR GitHub Pages. Use it automatically.
+# The original repo uses the official app (pocket-terminal.vercel.app).
+# If you forked it, your phone app lives on YOUR GitHub Pages. Use it automatically.
 APP_ARGS=()
 ORIGIN="$(git -C "$DIR/.." remote get-url origin 2>/dev/null || true)"
-if [[ "$ORIGIN" =~ github\.com[:/]([^/]+)/([^/.]+)(\.git)?$ ]]; then
+if [[ "$ORIGIN" =~ github\.com[:/]([^/]+)/([^/.]+)(\.git)?$ ]] && [[ ! "$ORIGIN" =~ [Uu]tsav[Dd]oye20122005/pocket-terminal ]]; then
   OWNER="$(echo "${BASH_REMATCH[1]}" | tr '[:upper:]' '[:lower:]')"; REPO="${BASH_REMATCH[2]}"
   APP_ARGS=(--app-url "https://$OWNER.github.io/$REPO/")
 fi
-"$NODE" pair.js --link-only "${APP_ARGS[@]}" >/dev/null   # creates the key the first time
+"$NODE" pair.js --list "${APP_ARGS[@]}" >/dev/null   # saves the settings; pairing comes at the end
 
 step 4/4 "Starting the agent now and at every login"
 mkdir -p "$HOME/Library/LaunchAgents"

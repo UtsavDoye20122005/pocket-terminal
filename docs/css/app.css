@@ -174,3 +174,12 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--lamp); outl
 .aiform b { color: var(--text); }
 select.field-in { appearance: none; -webkit-appearance: none; }
 #askHint { margin-top: 10px; }
+/* one-time pairing: compare this code with the one on the computer */
+.join { margin: 28px 0 8px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.join small { color: var(--muted); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; }
+.jcode { font: 700 40px/1 var(--mono); letter-spacing: .06em; color: var(--lamp); padding: 18px 26px; border-radius: 18px; background: var(--panel); border: 1px solid var(--line); }
+.wait { display: flex; gap: 6px; margin-top: 10px; }
+.wait span { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); animation: blink 1s infinite ease-in-out; }
+.wait span:nth-child(2) { animation-delay: .15s; } .wait span:nth-child(3) { animation-delay: .3s; }
+.fixit { color: var(--lamp); margin-right: 12px; }
+#aiForm .row2 .btn { flex: 1; }

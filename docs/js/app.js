@@ -4,7 +4,7 @@
 //       post encrypted "hello" + "offer" → Mac answers → direct WebRTC link → live terminal.
 // If the direct link can't open, commands go as encrypted notes through the board instead.
 
-import { derive, seal, open, randomId, lockSecret, unlockSecret } from './crypto.js';
+import { derive, seal, open, randomId, lockSecret, unlockSecret, newPairKey, pairCode, unwrapJoin } from './crypto.js';
 import { Board, MAX_NOTE } from './board.js';
 import { search, riskOf, needsFill, askAi, PROVIDERS } from './helper.js';
 
@@ -33,12 +33,11 @@ let pendingPair = null;
 async function boot() {
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
   const h = new URLSearchParams(location.hash.slice(1));
-  if (h.get('pair')) {
-    const boards = (h.get('boards') || '').split(',').filter((u) => /^https:\/\//.test(u) || /^http:\/\/(127\.0\.0\.1|localhost)[:/]/.test(u));
-    pendingPair = { secret: h.get('pair'), name: (h.get('name') || 'your computer').slice(0, 40), boards: boards.length ? boards : DEFAULT_BOARDS };
-    history.replaceState(null, '', location.pathname + location.search); // remove the secret from the address bar
-    $('pairTitle').textContent = `Pair with ${pendingPair.name}`;
-    show('gate-pair'); pairFlow(); return;
+  if (h.get('join') || h.get('pair')) {
+    history.replaceState(null, '', location.pathname + location.search); // remove the code from the address bar
+    if (!h.get('join')) { show('gate-none'); toast('That is an old pairing code. Run  node pair.js  on your computer for a new one.'); return; }
+    const join = { invite: h.get('join'), name: (h.get('name') || 'your computer').slice(0, 40), boards: okBoards(h.get('boards')) || DEFAULT_BOARDS };
+    show('gate-pair'); joinFlow(join); return;
   }
   const vault = store.get('vault');
   if (!vault) return show('gate-none');
@@ -46,6 +45,46 @@ async function boot() {
   if (s && s.expires > Date.now() && s.topic === vault.topic) return start(s);
   $('lockTitle').textContent = `Unlock ${vault.name}`;
   show('gate-lock'); lockFlow(vault);
+}
+
+const okBoards = (v) => { const b = (Array.isArray(v) ? v : String(v || '').split(',')).filter((u) => /^https:\/\//.test(u) || /^http:\/\/(127\.0\.0\.1|localhost)[:/]/.test(u)); return b.length ? b : null; };
+function deviceName() {
+  const ua = navigator.userAgent;
+  const dev = /iPad/.test(ua) ? 'iPad' : /iPhone/.test(ua) ? 'iPhone' : /Android/.test(ua) ? 'Android phone' : /Mac/.test(ua) ? 'Mac browser' : /Windows/.test(ua) ? 'Windows browser' : 'Browser';
+  const br = /CriOS|Chrome/.test(ua) && !/Edg/.test(ua) ? 'Chrome' : /FxiOS|Firefox/.test(ua) ? 'Firefox' : /Edg/.test(ua) ? 'Edge' : /Safari/.test(ua) ? 'Safari' : '';
+  return br ? `${dev} (${br})` : dev;
+}
+
+// ---------- one-time pairing: the computer must approve this phone ----------
+async function joinFlow(j) {
+  $('pairTitle').textContent = `Pair with ${j.name}`;
+  $('pairPad').hidden = $('pairDots').hidden = true; $('joinBox').hidden = false;
+  const fail = (msg) => { $('joinBox').hidden = true; $('pairHint').textContent = ''; $('pairErr').textContent = msg; };
+  let ik; try { ik = await derive(j.invite); } catch { return fail('This pairing link is broken. Make a new QR code on your computer.'); }
+  const { kp, pub } = await newPairKey(), nonce = randomId(), code = await pairCode(pub);
+  $('joinCode').textContent = code.slice(0, 3) + ' ' + code.slice(3);
+  $('pairHint').textContent = 'Sending this phone\'s code to your computer…';
+  let done = false, slow, timeout;
+  const end = () => { done = true; b.stop(); clearTimeout(slow); clearTimeout(timeout); };
+  const b = new Board(j.boards, ik.topic, async (text) => {
+    const m = await open(ik, text);
+    if (done || !m || m.from !== 'mac' || m.for !== nonce) return;
+    if (m.type === 'denied') { end(); return fail((m.why || 'Your computer said no.') + ' Nothing was paired.'); }
+    if (m.type !== 'welcome') return;
+    let p; try { p = await unwrapJoin(kp, nonce, m.wrap); } catch { return; }
+    end();
+    pendingPair = { secret: p.secret, name: String(p.name || j.name).slice(0, 40), boards: okBoards(p.boards) || j.boards };
+    $('joinBox').hidden = true; $('pairPad').hidden = $('pairDots').hidden = false;
+    $('pairTitle').textContent = `Approved by ${pendingPair.name}`;
+    $('pairHint').textContent = 'Now choose a PIN for this phone (6 or more digits).';
+    pairFlow();
+  });
+  b.start('2m');
+  try { await b.publish(await seal(ik, { id: randomId(), ts: Date.now(), from: 'phone', type: 'join', nonce, pub, device: deviceName() })); }
+  catch (e) { end(); return fail(e.message); }
+  $('pairHint').textContent = 'Check that your computer shows the same code, then type y there to allow this phone.';
+  slow = setTimeout(() => { if (!done) $('pairErr').textContent = 'Still waiting. Each QR code works only once: if this one was already used or is older than 10 minutes, run  node pair.js  on your computer for a new one.'; }, 45e3);
+  timeout = setTimeout(() => { if (!done) { end(); fail('No answer from your computer. Run  node pair.js  there for a new QR code.'); } }, 10 * 60e3);
 }
 
 // ---------- PIN pad (phone-style; the physical keyboard works too) ----------
@@ -353,7 +392,8 @@ function renderJobs() {
     const tag = j.status === 'done' ? (j.code === 0 ? '<span class="tag done">done</span>' : `<span class="tag fail">exit ${esc(j.code)}</span>`)
       : j.status === 'running' ? '<span class="tag running">running</span>' : j.status === 'error' ? '<span class="tag fail">not sent</span>' : '<span class="tag">waiting for computer</span>';
     const out = j.status === 'done' || j.status === 'error' ? `<pre>${esc(j.out) || '(no output)'}</pre>` : '';
-    return `<div class="item"><div class="top"><code>${esc(j.cmd)}</code>${tag}</div>${out}<div class="meta"><span>sent ${ago(j.created)}${j.finished ? ' · finished ' + ago(j.finished) : ''}</span><button class="x" data-del="${esc(j.cid)}">remove</button></div></div>`;
+    const fix = j.status === 'done' && j.code !== 0 ? `<button class="x fixit" data-fix="${esc(j.cid)}">✦ Fix with AI</button>` : '';
+    return `<div class="item"><div class="top"><code>${esc(j.cmd)}</code>${tag}</div>${out}<div class="meta"><span>sent ${ago(j.created)}${j.finished ? ' · finished ' + ago(j.finished) : ''}</span><span>${fix}<button class="x" data-del="${esc(j.cid)}">remove</button></span></div></div>`;
   }).join('') : '<div class="empty">No commands yet. Type one above and tap Run.</div>';
 }
 
@@ -391,7 +431,7 @@ async function loadAi() {
   const a = store.get('ai'); if (!a) return paintAiInfo();
   try {
     const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: fromB64(a.iv), additionalData: AI_AAD }, keys.key, fromB64(a.ct));
-    ai = { provider: a.provider, model: a.model, key: new TextDecoder().decode(plain) };
+    ai = { provider: a.provider, model: a.model, url: a.url, key: new TextDecoder().decode(plain) };
   } catch { ai = null; }
   paintAiInfo();
 }
@@ -400,11 +440,11 @@ const fromB64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 async function saveAi(cfg) {
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: AI_AAD }, keys.key, new TextEncoder().encode(cfg.key));
-  store.set('ai', { provider: cfg.provider, model: cfg.model, iv: toB64(iv), ct: toB64(ct) });
+  store.set('ai', { provider: cfg.provider, model: cfg.model, url: cfg.url, iv: toB64(iv), ct: toB64(ct) });
   ai = cfg; paintAiInfo();
 }
 function paintAiInfo() {
-  $('aiInfo').textContent = ai ? `On: ${PROVIDERS[ai.provider]?.label || ai.provider}` : 'Off. Turns plain English into commands with your own AI key.';
+  $('aiInfo').textContent = ai ? `On: ${(PROVIDERS[ai.provider]?.label || ai.provider).split(':')[0]}${ai.model ? ' · ' + ai.model : ''}` : 'Off. Works with ChatGPT, Claude, Gemini or any OpenAI-compatible API, using your own key.';
   $('aiSetup').textContent = ai ? 'Change' : 'Set up';
 }
 
@@ -440,12 +480,13 @@ function paintAsk() {
   paintAsk.lib = lib;
   $('askHint').textContent = q.trim() ? `Commands for ${OS_LABEL[os]}. Nothing runs until you tap Run.` : 'Say what you want in plain English, or type the part of a command you remember.';
 }
-async function doAsk() {
+async function doAsk(request) {
   const q = $('askIn').value.trim(); if (!q) return;
+  request = request || q;
   if (!ai) { openSheet('settings'); $('aiForm').hidden = false; fillAiForm(); return toast('Add an AI key first. Groq and Gemini keys are free.'); }
   aiBusy?.abort(); const ctl = new AbortController(); aiBusy = ctl; aiResults = []; aiNote = ''; paintAsk();
   const timer = setTimeout(() => ctl.abort(), 25e3);
-  try { const r = await askAi(ai, q, os, ctl.signal); if (aiBusy !== ctl) return; aiResults = r.options; aiNote = r.note; }
+  try { const r = await askAi(ai, request, os, ctl.signal); if (aiBusy !== ctl) return; aiResults = r.options; aiNote = r.note; }
   catch (e) { if (aiBusy !== ctl) return; aiNote = e.name === 'AbortError' ? 'The AI took too long. Try again.' : /fetch/i.test(e.message) ? 'Could not reach the AI. Check this phone\'s internet.' : e.message; }
   finally { clearTimeout(timer); if (aiBusy === ctl) { aiBusy = null; paintAsk(); } }
 }
@@ -453,9 +494,19 @@ function fillAiForm() {
   const p = ai?.provider || 'groq';
   $('aiProvider').innerHTML = Object.entries(PROVIDERS).map(([k, v]) => `<option value="${k}"${k === p ? ' selected' : ''}>${esc(v.label)}</option>`).join('');
   $('aiKey').value = ''; $('aiKey').placeholder = ai ? 'API key (leave empty to keep)' : 'API key';
-  $('aiModel').value = ai?.model || ''; aiHelp();
+  $('aiModel').value = ai?.model || ''; $('aiUrl').value = ai?.url || ''; $('aiNote').textContent = ''; aiHelp();
 }
-function aiHelp() { const p = PROVIDERS[$('aiProvider').value]; $('aiModel').placeholder = 'model: ' + p.model; $('aiKeyHelp').innerHTML = `Get a key at <b>${esc(p.keyUrl)}</b>.`; }
+function aiHelp() {
+  const k = $('aiProvider').value, p = PROVIDERS[k];
+  $('aiUrl').hidden = k !== 'custom';
+  $('aiModel').placeholder = p.model ? 'model (default: ' + p.model + ')' : 'model name, e.g. llama3.1';
+  $('aiKeyHelp').innerHTML = k === 'custom' ? 'Any service that speaks the OpenAI chat API: Together, Fireworks, Perplexity, Azure OpenAI, your own server… It must allow calls from a browser (CORS).'
+    : `Get a key at <b>${esc(p.keyUrl)}</b>.` + (k === 'openai' ? ' A ChatGPT Plus subscription is not an API key; API use is billed separately.' : k === 'openrouter' ? ' Works with every big model, and some are free.' : '');
+}
+function aiFormCfg() {
+  const provider = $('aiProvider').value, key = $('aiKey').value.trim() || (ai && ai.provider === provider ? ai.key : '');
+  return { provider, key, model: $('aiModel').value.trim(), url: provider === 'custom' ? $('aiUrl').value.trim() : '' };
+}
 function setupAsk() {
   let t; $('askIn').addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => { aiResults = []; aiNote = ''; paintAsk(); }, 100); });
   $('askForm').onsubmit = (e) => { e.preventDefault(); doAsk(); };
@@ -480,9 +531,17 @@ function setupAsk() {
   $('aiProvider').onchange = aiHelp;
   $('aiForm').onsubmit = async (e) => {
     e.preventDefault();
-    const provider = $('aiProvider').value, key = $('aiKey').value.trim() || (ai && ai.provider === provider ? ai.key : '');
-    if (!key) return toast('Paste your API key');
-    await saveAi({ provider, model: $('aiModel').value.trim(), key }); $('aiForm').hidden = true; toast('AI helper is on. Try it in Ask.');
+    const c = aiFormCfg();
+    if (!c.key) return toast('Paste your API key');
+    if (c.provider === 'custom' && !/^https:\/\//.test(c.url)) return toast('Enter the API address (https://…)');
+    if (c.provider === 'custom' && !c.model) return toast('Enter a model name');
+    await saveAi(c); $('aiForm').hidden = true; toast('AI helper is on. Try it in Ask.');
+  };
+  $('aiTest').onclick = async () => {
+    const c = aiFormCfg(); if (!c.key) return toast('Paste your API key');
+    $('aiNote').textContent = 'Testing…';
+    try { const r = await askAi(c, 'show the current folder', os, AbortSignal.timeout(20e3)); $('aiNote').textContent = `Works ✓ It answered: ${r.options[0].cmd}`; }
+    catch (e) { $('aiNote').textContent = /fetch/i.test(e.message) ? 'Could not reach it. Check the address, or this provider may block calls from a browser (try OpenRouter).' : e.message; }
   };
   $('aiOff').onclick = () => { store.del('ai'); ai = null; paintAiInfo(); $('aiForm').hidden = true; toast('AI helper turned off. The key was removed from this phone.'); };
 }
@@ -525,7 +584,14 @@ function setupUi() {
   $('sheet').onclick = (e) => { if (e.target.id === 'sheet') { $('sheet').classList.remove('show'); term.focus(); } };
 
   $('qform').onsubmit = (e) => { e.preventDefault(); runCommand($('qcmd').value); $('qcmd').value = ''; };
-  $('jobs').onclick = (e) => { const id = e.target.dataset.del; if (id) { jobs = jobs.filter((j) => j.cid !== id); saveJobs(); } };
+  $('jobs').onclick = (e) => {
+    const id = e.target.dataset.del; if (id) { jobs = jobs.filter((j) => j.cid !== id); saveJobs(); return; }
+    const f = jobs.find((j) => j.cid === e.target.dataset.fix); if (!f) return;
+    openSheet('ask'); $('askIn').value = 'Fix: ' + f.cmd;
+    if (!ai) return doAsk();
+    toast('Sending the command and the end of its output to your AI');
+    doAsk(`This command failed with exit code ${f.code}:\n$ ${f.cmd}\n\nOutput (last part):\n${String(f.out || '').slice(-1500)}\n\nWhat went wrong, and what should I run instead?`);
+  };
   $('clearDone').onclick = () => { jobs = jobs.filter((j) => j.status !== 'done'); saveJobs(); };
 
   $('sform').onsubmit = (e) => { e.preventDefault(); const name = $('sname').value.trim(), cmd = $('scmd').value.trim(); if (!name || !cmd) return toast('Give it a name and a command');

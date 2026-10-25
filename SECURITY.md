@@ -7,7 +7,8 @@ that access is protected, and where the limits are.
 
 | Layer | How |
 |---|---|
-| **Pairing key** | 32 random bytes made on your Mac. It travels to the phone only inside the QR link's `#fragment`, which browsers never send to any server. |
+| **One-time pairing** | The QR code holds a one-time invite (valid 10 min). The phone sends its own P-256 public key; both screens show a 6-digit code from it and you type `y` on the computer. If a second phone tries the same invite, the computer refuses all of them. Reusing an old QR does nothing. |
+| **A key per phone** | After approval the computer makes a new 32-byte key just for that phone and sends it wrapped with ECDH (computer's one-off key × phone's key), so the QR code alone can't unwrap it. Each phone has its own mailbox; `node pair.js --remove NAME` locks one out within seconds. |
 | **Private mailbox** | The board topic is derived from the key (HKDF-SHA256). Without the key, nobody can find it. |
 | **Every note encrypted + authenticated** | AES-256-GCM with a key derived from the pairing key. A forged or tampered note is rejected. The mailbox name is bound into every note, so notes can't be moved between mailboxes. |
 | **Direct link** | WebRTC data channel, encrypted with DTLS. The DTLS fingerprints travel inside the authenticated notes, so nobody (including the board) can sit in the middle. |
@@ -18,8 +19,8 @@ that access is protected, and where the limits are.
 | **Windows** | No admin rights at all. The agent changes only your own power plan's lid-close action (restored when it stops or is uninstalled) and one wake-up task in Task Scheduler. |
 | **Logs** | Command text and output are never written to the agent log. The log file is only readable by you. |
 | **Notifications** | ntfy pings are content-free ("Command finished ✅"). |
-| **AI helper (optional)** | Off by default. Your own key is stored encrypted with the pairing key. Only the text you type in **Ask** is sent, directly from the phone to the provider you chose. Suggestions never run by themselves, and every one passes a local danger check that doesn't trust the AI's own label. |
-| **Revocation** | `node pair.js --new` makes a new key. Every phone paired before is locked out immediately. |
+| **AI helper (optional)** | Off by default. Your own key is stored encrypted with the pairing key. Only the text you type in **Ask** (and, when you tap *Fix with AI*, that command and the end of its output) is sent, directly from the phone to the provider you chose. Suggestions never run by themselves, and every one passes a local danger check that doesn't trust the AI's own label. |
+| **Revocation** | `node pair.js --remove NAME` (or `all`). The agent watches its settings file and closes that phone's mailbox within seconds. |
 
 ## What the message board can see
 - That *some* encrypted notes were posted to a random-looking topic, when, from which IP
@@ -30,8 +31,8 @@ The STUN servers (Google/Cloudflare) see your public IP addresses while the dire
 set up, the same as in any video call. They never see your data.
 
 ## What it does NOT protect against
-- **Someone who has your unlocked phone,** or your pairing QR code. Treat the QR like a password:
-  don't screenshot it. If it leaks, run `node pair.js --new`.
+- **Someone who has your unlocked phone.** Lock it or remove it: `node pair.js --remove NAME`.
+- **You typing `y` without comparing the code.** The 6-digit check only helps if you actually look.
 - **A short PIN against an attacker who copies your phone's storage.** 6 digits can be guessed
   offline. Use a longer passphrase if that's in your threat model.
 - **Whoever controls the phone app's code.** The app is loaded from GitHub Pages. If you use

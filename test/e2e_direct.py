@@ -1,6 +1,7 @@
 # End-to-end test: fake board + real phone app (headless Chromium) + Mac agent with a simulated sleeping Mac.
 # Needs: pip install playwright && playwright install chromium.   Run: python3 test/e2e_direct.py
-import subprocess, time, os, json, signal
+import subprocess, time, os, json, signal, sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import pairing_helper as ph
 from playwright.sync_api import sync_playwright
 S=os.environ.get('E2E_DIR') or __import__('tempfile').mkdtemp(); os.makedirs(S+'/home', exist_ok=True); R=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 svc=subprocess.Popen(['node','test/run-services.js','8810','8811',S+'/board.json'],cwd=R,stdout=subprocess.PIPE,text=True)
@@ -8,10 +9,7 @@ ports=json.loads(svc.stdout.readline()); BOARD=f"http://127.0.0.1:{ports['board'
 json.dump({'percent':70,'onCharger':True,'lid':True},open(S+'/sim.json','w'))
 json.dump({'checkInMinutes':0.4,'idleMinutes':0.05},open(S+'/home/power.json','w'))
 env=dict(os.environ,POCKET_HOME=S+'/home',POCKET_APP_URL=APP)
-subprocess.run(['node','pair.js','--name','TestMac','--board',BOARD],cwd=R+'/agent',env=env,capture_output=True)
-cfg=json.load(open(S+'/home/direct.json')); cfg['boards']=[BOARD]; cfg['iceServers']=[]; json.dump(cfg,open(S+'/home/direct.json','w'))
-link=subprocess.run(['node','pair.js','--link-only'],cwd=R+'/agent',env=env,capture_output=True,text=True).stdout.strip()
-print('pair link boards param ok:', 'boards=' in link)
+ph.setup(R, env, 'TestMac', BOARD)
 def start_agent(extra={}):
     return subprocess.Popen(['node','agent.js'],cwd=R+'/agent',env=dict(env,POWER_SIM=R+'/agent/test/sim-mac.js',SIM_STATE=S+'/sim.json',**extra),stdout=open(S+'/agent.log','a'),stderr=subprocess.STDOUT)
 agent=start_agent(); time.sleep(1.5)
@@ -30,15 +28,14 @@ try:
     b=p.chromium.launch(args=['--disable-features=WebRtcHideLocalIpsWithMdns'])
     ctx=b.new_context(**p.devices['iPhone 13']); pg=ctx.new_page()
     errs=[]; logs=[]; ctx.on('console', lambda m: logs.append(m.text)); pg.on('pageerror', lambda e: errs.append(str(e)))
-    pg.goto(link); pg.wait_for_selector('#gate-pair:not([hidden])')
-    print('1 pair screen:', pg.inner_text('#pairTitle'), '| secret removed from URL:', 'pair=' not in pg.url)
-    pg.keyboard.type('123456'); pg.keyboard.press('Enter'); pg.keyboard.type('123456'); pg.keyboard.press('Enter')
+    match, out, link = ph.pair(pg, R, env)
+    print('1 one-time pairing: codes match:', match, '| approved:', 'Paired' in out, '| code removed from URL:', 'join=' not in pg.url)
     t0=time.time(); ok=wait(pg, lambda: 'awake' in (pg.get_attribute('#presence','class') or ''), 40)
     print(f'2 direct link: {bool(ok)} in {time.time()-t0:.1f}s | status:', pg.inner_text('#status'))
     pg.screenshot(path=S+'/d_connected.png')
     pg.click('#term'); pg.keyboard.type('echo p2p-$((6*7))\n')
     print('3 terminal:', bool(wait(pg, lambda: 'p2p-42' in pg.evaluate(rows).split('echo')[-1], 10)))
-    vault=pg.evaluate("localStorage.getItem('pt_vault')"); print('4 vault has no plain secret:', cfg['secret'] not in vault)
+    vault=pg.evaluate("localStorage.getItem('pt_vault')"); cfg=json.load(open(S+'/home/direct.json')); print('4 vault has no plain secret:', cfg['devices'][0]['secret'] not in vault)
     # lock + wrong PIN + right PIN
     pg.click('#menuBtn'); pg.click('[data-tab=settings]'); pg.click('#lockNow'); pg.wait_for_selector('#gate-lock:not([hidden])')
     pg.keyboard.type('000000'); pg.keyboard.press('Enter'); time.sleep(1.5); print('5 wrong PIN:', pg.inner_text('#lockErr'))

@@ -1,6 +1,7 @@
 # Captures the README screenshots with the real app, a fake board and a simulated computer.
 # Needs: pip install playwright && playwright install chromium.   Run: python3 test/make_screenshots.py
-import subprocess, time, os, json, signal, tempfile
+import subprocess, time, os, json, signal, tempfile, sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import pairing_helper as ph
 from playwright.sync_api import sync_playwright
 R = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(R, 'docs', 'screenshots'); os.makedirs(OUT, exist_ok=True)
@@ -11,9 +12,7 @@ ports = json.loads(svc.stdout.readline()); BOARD = f"http://127.0.0.1:{ports['bo
 json.dump({'percent': 82, 'onCharger': True, 'lid': True}, open(S + '/sim.json', 'w'))
 json.dump({'checkInMinutes': 2, 'idleMinutes': 0.05}, open(S + '/home/power.json', 'w'))
 env = dict(os.environ, POCKET_HOME=S + '/home', POCKET_APP_URL=APP, SHELL='/bin/bash', HOME=S)
-subprocess.run(['node', 'pair.js', '--name', 'MacBook Pro', '--board', BOARD], cwd=R + '/agent', env=env, capture_output=True)
-cfg = json.load(open(S + '/home/direct.json')); cfg['boards'] = [BOARD]; cfg['iceServers'] = []; json.dump(cfg, open(S + '/home/direct.json', 'w'))
-link = subprocess.run(['node', 'pair.js', '--link-only'], cwd=R + '/agent', env=env, capture_output=True, text=True).stdout.strip()
+ph.setup(R, env, 'MacBook Pro', BOARD)
 agent = subprocess.Popen(['node', 'agent.js'], cwd=R + '/agent', env=dict(env, POWER_SIM=R + '/agent/test/sim-mac.js', SIM_STATE=S + '/sim.json'), stdout=open(S + '/agent.log', 'w'), stderr=subprocess.STDOUT)
 time.sleep(1.5)
 def shot(pg, name): pg.wait_for_timeout(700); pg.screenshot(path=f'{OUT}/{name}.png')
@@ -22,8 +21,8 @@ try:
         b = p.chromium.launch(args=['--disable-features=WebRtcHideLocalIpsWithMdns'])
         ctx = b.new_context(**p.devices['iPhone 13']); pg = ctx.new_page()
         pg.goto(APP); pg.evaluate("localStorage.setItem('pt_font', '11')"); shot(pg, 'welcome')
-        pg.close(); pg = ctx.new_page(); pg.goto(link); pg.keyboard.type('1234'); shot(pg, 'pair')  # new page: a hash-only change would not reload
-        pg.keyboard.type('56'); pg.keyboard.press('Enter'); pg.keyboard.type('123456'); pg.keyboard.press('Enter')
+        pg.close(); pg = ctx.new_page()  # new page: a hash-only change would not reload
+        ph.pair(pg, R, env, shot=lambda pg: (pg.evaluate("document.getElementById('pairHint').textContent='Check that your computer shows the same code, then type y there to allow this phone.'"), shot(pg, 'pair')))
         t0 = time.time()
         while 'awake' not in (pg.get_attribute('#presence', 'class') or '') and time.time() - t0 < 40: time.sleep(0.3)
         pg.click('#term'); time.sleep(1)

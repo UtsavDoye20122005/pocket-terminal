@@ -1,15 +1,14 @@
 # End-to-end test for "Ask": built-in search, AI (fake provider), safety, run over the direct link, run while asleep.
 # Run: python3 test/e2e_ask.py
-import subprocess, time, os, json, signal
+import subprocess, time, os, json, signal, sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import pairing_helper as ph
 from playwright.sync_api import sync_playwright
 S=__import__('tempfile').mkdtemp(); os.makedirs(S+'/home', exist_ok=True); R=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 svc=subprocess.Popen(['node','test/run-services.js','8820','8821',S+'/board.json'],cwd=R,stdout=subprocess.PIPE,text=True)
 ports=json.loads(svc.stdout.readline()); BOARD=f"http://127.0.0.1:{ports['board']}"; APP=f"http://localhost:{ports['app']}/"
 json.dump({'percent':70,'onCharger':True,'lid':True},open(S+'/sim.json','w'))
 env=dict(os.environ,POCKET_HOME=S+'/home',POCKET_APP_URL=APP)
-subprocess.run(['node','pair.js','--name','TestMac','--board',BOARD],cwd=R+'/agent',env=env,capture_output=True)
-cfg=json.load(open(S+'/home/direct.json')); cfg['boards']=[BOARD]; cfg['iceServers']=[]; json.dump(cfg,open(S+'/home/direct.json','w'))
-link=subprocess.run(['node','pair.js','--link-only'],cwd=R+'/agent',env=env,capture_output=True,text=True).stdout.strip()
+ph.setup(R, env, 'TestMac', BOARD)
 
 agent=subprocess.Popen(['node','agent.js'],cwd=R+'/agent',env=dict(env,POWER_SIM=R+'/agent/test/sim-mac.js',SIM_STATE=S+'/sim.json'),stdout=open(S+'/agent.log','a'),stderr=subprocess.STDOUT)
 rows="[...document.querySelectorAll('.xterm-rows > div')].map(d=>d.textContent).join('\\n')"
@@ -40,8 +39,7 @@ try:
   with sync_playwright() as p:
     b=p.chromium.launch(args=['--disable-features=WebRtcHideLocalIpsWithMdns'])
     ctx=b.new_context(**p.devices['iPhone 13']); pg=ctx.new_page(); pg.on('console', lambda m: m.type=='error' and errs.append('console: '+m.text)); pg.on('pageerror', lambda e: errs.append(str(e)))
-    pg.goto(link); pg.wait_for_selector('#gate-pair:not([hidden])')
-    pg.keyboard.type('123456'); pg.keyboard.press('Enter'); pg.keyboard.type('123456'); pg.keyboard.press('Enter')
+    ph.pair(pg, R, env)
     check(1, 'direct link', wait(lambda: 'awake' in (pg.get_attribute('#presence','class') or ''), 40))
     check(2, 'computer OS known', pg.evaluate("localStorage.getItem('pt_os')"))
     pg.click('#askBtn'); pg.fill('#askIn','find big files')
@@ -67,7 +65,15 @@ try:
     check(15, 'AI key survives reload (decrypted)', wait(lambda: 'Groq' in pg.inner_text('#aiInfo'), 5))
     check(16, 'no page errors', not errs or errs)
     pg.route('https://api.groq.com/**', fake_ai)
-    pg.click('#askBtn'); pg.fill('#askIn','my react app says port 3000 is already in use'); pg.click('#askGo')
+    pg.click('#menuBtn'); pg.click('[data-tab=queue]'); pg.fill('#qcmd','ls /no-such-folder-xyz'); pg.click('#qform button')
+    wait(lambda: pg.is_visible('.fixit'), 15); pg.click('.fixit')
+    check(19, 'Fix with AI sends the failed command and its output', wait(lambda: pg.title() is not None and any('failed with exit code' in a['body']['messages'][-1]['content'] and 'no-such-folder' in a['body']['messages'][-1]['content'] for a in asked), 10))
+    pg.route('https://llm.example.test/**', fake_ai)
+    pg.click('[data-tab=settings]'); pg.click('#aiSetup'); pg.select_option('#aiProvider','custom')
+    pg.fill('#aiUrl','https://llm.example.test/v1/chat/completions'); pg.fill('#aiModel','my-model'); pg.fill('#aiKey','sk-custom'); pg.click('#aiTest')
+    check(20, 'custom OpenAI-compatible API: Test button works', wait(lambda: 'Works' in pg.inner_text('#aiNote'), 10) and asked[-1]['body']['model']=='my-model' and asked[-1]['auth']=='Bearer sk-custom')
+    pg.click('#aiForm button.btn:not(.ghost)')
+    pg.click('[data-tab=ask]'); pg.fill('#askIn','my react app says port 3000 is already in use'); pg.click('#askGo')
     check(17, 'plain-English AI answer', wait(lambda: pg.input_value('#askAi .sug .cmdedit')=='lsof -ti :3000 | xargs kill', 10))
     pg.evaluate("document.activeElement.blur(); document.getElementById('status').textContent='Awake · direct, encrypted'; document.getElementById('askHint').textContent='Commands for macOS. Nothing runs until you tap Run.'"); time.sleep(.4)
     pg.screenshot(path=S+'/ask.png'); __import__('shutil').copy(S+'/ask.png', R+'/docs/screenshots/ask.png')

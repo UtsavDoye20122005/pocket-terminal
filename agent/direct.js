@@ -24,7 +24,7 @@ const FRESH = { hello: 3 * 60e3, offer: 90e3, settings: 24 * 3600e3 };
 
 function startDirect({ cfg, core, power, log, dir }) {
   const keys = derive(cfg.secret);
-  const STATE = path.join(dir, 'direct-state.json');
+  const STATE = path.join(dir, cfg.stateFile || 'direct-state.json');
   let state = {}; try { state = JSON.parse(fs.readFileSync(STATE, 'utf8')); } catch {}
   const seen = new Set(state.seen || []);
   const board = new Board(cfg.boards || ['https://ntfy.sh'], keys.topic, { log, since: state.since || {} });

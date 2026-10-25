@@ -29,7 +29,7 @@ HERO = BASE + f"""
   <div class="phone" style="position:absolute;right:40px;top:120px;transform:rotate(5deg)"><img src="{img('asleep')}"></div>
 </div>"""
 
-shots = [('pair', 'Pair with a QR code and a PIN'), ('terminal', 'A real terminal, connected directly'), ('asleep', "Asleep? Send it anyway"), ('commands', 'Replies come back to you'), ('power', 'You decide how it sleeps')]
+shots = [('pair', 'Approve each phone on the computer'), ('terminal', 'A real terminal, connected directly'), ('asleep', "Asleep? Send it anyway"), ('commands', 'Replies come back to you'), ('power', 'You decide how it sleeps')]
 GALLERY = BASE + f"""
 <div style="width:1640px;padding:56px 40px 48px;display:flex;gap:28px;justify-content:center;background:#0F1220">
   {''.join(f'<figure style="width:300px"><div class="phone" style="box-shadow:0 20px 50px rgba(0,0,0,.5), inset 0 0 0 2px #3A4062"><img src="{img(n)}"></div><figcaption style="margin-top:20px;text-align:center;font-size:20px;color:#C9C7DA">{c}</figcaption></figure>' for n, c in shots)}
