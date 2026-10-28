@@ -1,6 +1,13 @@
 # Changelog
 
-## Unreleased
+## 6.2 (2026-10-28)
+- Light theme by default, with Settings → Appearance (Light / Dark / Auto) and a matching terminal.
+- Demo mode: tap **See a demo first** (or open `#demo`) to try the whole app with a pretend
+  computer. It never connects anywhere or touches your pairing.
+- Motion: the lamp line ignites when the link goes live, pages slide, the menu springs open,
+  lists settle in. All of it switches off with Reduce Motion.
+
+## 6.0–6.1
 - Redesigned phone app: one clean terminal screen, a single key bar that sits on the keyboard,
   and a simple menu.
 - Security: pairing links can't silently replace an existing pairing; PIN lock uses 600,000

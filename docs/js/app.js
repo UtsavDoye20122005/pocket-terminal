@@ -9,18 +9,22 @@ import { Board, MAX_NOTE } from './board.js';
 import { search, riskOf, needsFill, askAi, PROVIDERS } from './helper.js';
 
 const $ = (id) => document.getElementById(id);
-const APP_VERSION = '6.1';
+const APP_VERSION = '6.2';
+// Demo mode (#demo): the whole app with sample data and a pretend shell. Connects to nothing,
+// and never touches this phone's real pairing, history or keys.
+const DEMO = location.hash === '#demo';
+const DEMO_KEEP = new Set(['theme', 'font']);
 const DEFAULT_BOARDS = ['https://ntfy.sh'];
 const ICE = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] }];
 const store = {
   get(k, d = null) { try { const v = localStorage.getItem('pt_' + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
-  set(k, v) { try { localStorage.setItem('pt_' + k, JSON.stringify(v)); } catch {} },
-  del(k) { try { localStorage.removeItem('pt_' + k); } catch {} },
+  set(k, v) { if (DEMO && !DEMO_KEEP.has(k)) return; try { localStorage.setItem('pt_' + k, JSON.stringify(v)); } catch {} },
+  del(k) { if (DEMO) return; try { localStorage.removeItem('pt_' + k); } catch {} },
 };
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const ago = (t) => { if (!t) return 'never'; const s = Math.round((Date.now() - t) / 1000);
   return s < 60 ? 'just now' : s < 3600 ? `${Math.round(s / 60)} min ago` : s < 86400 ? `${Math.round(s / 3600)} h ago` : `${Math.round(s / 86400)} d ago`; };
-let toastT; const toast = (m) => { const t = $('toast'); t.textContent = m; t.style.display = 'block'; clearTimeout(toastT); toastT = setTimeout(() => (t.style.display = 'none'), 2600); };
+let toastT; const toast = (m) => { const t = $('toast'); t.textContent = m; t.style.display = 'block'; t.classList.remove('show'); void t.offsetWidth; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => (t.style.display = 'none'), 2600); };
 const show = (id) => { for (const g of ['gate-pair', 'gate-lock', 'gate-none', 'app']) $(g).hidden = g !== id; };
 
 // ---------- unlocked-session cache (IndexedDB keeps the key non-extractable) ----------
@@ -33,6 +37,7 @@ async function idbDel(k) { try { const db = await idb(); await new Promise((res)
 let pendingPair = null;
 async function boot() {
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+  if (DEMO) return startDemo();
   const h = new URLSearchParams(location.hash.slice(1));
   if (h.get('join') || h.get('pair')) {
     history.replaceState(null, '', location.pathname + location.search); // remove the code from the address bar
@@ -69,6 +74,7 @@ function showNone() {
   $('pasteBtn').onclick = () => { $('pasteForm').hidden = false; $('pasteIn').focus(); };
   $('pasteForm').onsubmit = (e) => { e.preventDefault(); if (!handleLink($('pasteIn').value)) $('noneErr').textContent = "That isn't a Pocket Terminal pairing link. Run  node pair.js  on your computer and copy the link it shows."; };
   $('scanClose').onclick = closeScanner;
+  $('demoBtn').onclick = () => { location.hash = 'demo'; location.reload(); };
 }
 function handleLink(text) {
   let u; try { u = new URL(String(text).trim()); } catch { return false; }
@@ -319,6 +325,7 @@ function gatherDone(p, ms) {
   });
 }
 async function connect({ hello = true } = {}) {
+  if (DEMO) return;
   if (dc && dc.readyState === 'open') return;
   if (Date.now() - lastAttempt < 5000) return;
   lastAttempt = Date.now();
@@ -380,8 +387,15 @@ function wire(ch) {
     flushPending();
     paint();
   };
-  ch.onmessage = (e) => {
-    let m; try { m = JSON.parse(e.data); } catch { return; }
+  ch.onmessage = (e) => { let m; try { m = JSON.parse(e.data); } catch { return; } handleMsg(m); };
+  ch.onclose = () => {
+    if (dc !== ch) return;
+    dc = null; linkState = 'waiting'; paint();
+    // The Mac probably went to sleep. It will tell the board; we reconnect when it's back.
+    setTimeout(() => { if (document.visibilityState === 'visible') connect(); }, 2000);
+  };
+}
+function handleMsg(m) {
     if (m.t === 'o') term.write(m.d);
     else if (m.t === 'reset') { term.reset(); if (m.d) term.write(m.d); }
     else if (m.t === 'power') { livePower = m; paint(); }
@@ -389,13 +403,6 @@ function wire(ch) {
     else if (m.t === 'hi') { if (m.os) setOs(m.os); }
     else if (m.t === 'revoked') revoked();
     else if (m.t === 'result') gotResult(m.id, m.code, m.out);
-  };
-  ch.onclose = () => {
-    if (dc !== ch) return;
-    dc = null; linkState = 'waiting'; paint();
-    // The Mac probably went to sleep. It will tell the board; we reconnect when it's back.
-    setTimeout(() => { if (document.visibilityState === 'visible') connect(); }, 2000);
-  };
 }
 const sendTerm = (m) => { if (dc && dc.readyState === 'open') dc.send(JSON.stringify(m)); };
 
@@ -411,8 +418,12 @@ function until(t) {
   const m = Math.floor(s / 60); return m ? `${m}:${String(s % 60).padStart(2, '0')}` : `${s}s`;
 }
 
+let wasLive = false;
 function paint() {
   if (!term) return;
+  const live = linkState === 'direct';
+  if (live && !wasLive) { const a = $('app'); a.classList.remove('ignite'); void a.offsetWidth; a.classList.add('ignite'); setTimeout(() => a.classList.remove('ignite'), 1300); }
+  wasLive = live;
   const name = mac.name || 'your computer';
   const p = livePower || mac.power;
   const nci = nextCheckIn();
@@ -438,10 +449,11 @@ function paint() {
   }
   $('macName').textContent = name;
   $('presence').className = 'presence ' + look;
-  $('app').classList.remove('awake', 'asleep', 'connecting', 'backup', 'off'); $('app').classList.add(look);
+  for (const c of ['awake', 'asleep', 'connecting', 'backup', 'off']) $('app').classList.toggle(c, c === look);
   $('arc').style.transform = `scaleX(${look === 'connecting' ? 0.3 : ring})`;
   $('status').textContent = status;
   if (banner) {
+    if ($('banner').hidden) { const b = $('banner'); b.style.animation = 'none'; void b.offsetWidth; b.style.animation = ''; }
     $('banner').hidden = false; $('bannerTitle').textContent = banner[0]; $('bannerText').textContent = banner[1];
     $('bannerForm').hidden = !banner[2];
     const row = $('bannerRow');
@@ -459,6 +471,15 @@ function paint() {
 }
 
 // ---------- terminal ----------
+const TERM_THEMES = {
+  light: { background: '#FFFFFF', foreground: '#1B1F27', cursor: '#C98A00', cursorAccent: '#FFFFFF', selectionBackground: '#F8E2B0',
+    black: '#1B1F27', red: '#D1343B', green: '#0B8A5E', yellow: '#A86A00', blue: '#2D62D8', magenta: '#8A4FD8', cyan: '#0E8A9E', white: '#9AA1AC',
+    brightBlack: '#5F6672', brightRed: '#E5484D', brightGreen: '#0E9F6E', brightYellow: '#C98A00', brightBlue: '#3B74F0', brightMagenta: '#9E63EC', brightCyan: '#13A3BA', brightWhite: '#C7CCD4' },
+  dark: { background: '#0C0D12', foreground: '#ECEAF4', cursor: '#F5B843', cursorAccent: '#0C0D12', selectionBackground: '#3A3424',
+    black: '#1E2338', red: '#FF7A7A', green: '#4FD1A1', yellow: '#F4B740', blue: '#7AA2FF', magenta: '#C79BFF', cyan: '#6FD3E6', white: '#E9E7F2',
+    brightBlack: '#5D6283', brightRed: '#FF9C9C', brightGreen: '#7BE3BD', brightYellow: '#FFD07A', brightBlue: '#9DBBFF', brightMagenta: '#DAB8FF', brightCyan: '#9BE6F2', brightWhite: '#FFFFFF' },
+};
+const termTheme = () => TERM_THEMES[document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light'];
 const KEYS = { cx: '\x18', co: '\x0f', esc: '\x1b', tab: '\t', up: '\x1b[A', down: '\x1b[B', right: '\x1b[C', left: '\x1b[D', home: '\x1b[H', end: '\x1b[F', pgup: '\x1b[5~', pgdn: '\x1b[6~', cc: '\x03', cd: '\x04', cz: '\x1a', cl: '\x0c', cr: '\x12' };
 const mods = { ctrl: false, alt: false }, modBtn = {};
 function applyMods(d) {
@@ -480,9 +501,8 @@ function input(d) {
 function setupTerminal() {
   let size = store.get('font', matchMedia('(max-width:700px)').matches ? 13 : 15);
   term = new Terminal({ fontFamily: '"JB Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace', fontSize: size, cursorBlink: true, scrollback: 5000, allowTransparency: true,
-    theme: { background: '#080A14', foreground: '#ECEAF4', cursor: '#F5B843', cursorAccent: '#080A14', selectionBackground: '#33305A',
-      black: '#1E2338', red: '#FF7A7A', green: '#4FD1A1', yellow: '#F4B740', blue: '#7AA2FF', magenta: '#C79BFF', cyan: '#6FD3E6', white: '#E9E7F2',
-      brightBlack: '#5D6283', brightRed: '#FF9C9C', brightGreen: '#7BE3BD', brightYellow: '#FFD07A', brightBlue: '#9DBBFF', brightMagenta: '#DAB8FF', brightCyan: '#9BE6F2', brightWhite: '#FFFFFF' } });
+    theme: termTheme() });
+  document.addEventListener('pt-theme', () => { term.options.theme = termTheme(); });
   fit = new FitAddon.FitAddon(); term.loadAddon(fit); term.open($('term')); setupTouchScroll();
   term.onData((d) => input(applyMods(d)));
   term.onResize(() => sendTerm({ t: 'r', cols: term.cols, rows: term.rows }));
@@ -699,17 +719,18 @@ function setupAsk() {
       return toast(`Fill in ${m[0]} first`);
     }
     if (b.dataset.act === 'save') { snippets.push({ id: randomId(), name: (r.name || r.explain || cmd).slice(0, 40), cmd }); renderSnips(); return toast('Saved. It shows as a chip now.'); }
-    if (b.dataset.act === 'type') { $('sheet').classList.remove('show'); input(cmd); term.focus(); return; }
+    if (b.dataset.act === 'type') { closeSheet(); input(cmd); term.focus(); return; }
     const risk = riskOf(cmd);
     if (risk?.level === 'danger' && armed !== b) { armed = b; b.textContent = 'Tap again to run'; b.classList.add('danger'); setTimeout(() => { if (armed === b) { armed = null; b.textContent = 'Run'; b.classList.remove('danger'); } }, 4000); return; }
     armed = null;
-    if (dc && dc.readyState === 'open') { $('sheet').classList.remove('show'); input(cmd + '\r'); term.focus(); }
+    if (dc && dc.readyState === 'open') { closeSheet(); input(cmd + '\r'); term.focus(); }
     else { runCommand(cmd); openSheet('queue'); toast('Sent. It runs at the next check-in.'); }
   });
   $('aiSetup').onclick = () => { $('aiForm').hidden = !$('aiForm').hidden; if (!$('aiForm').hidden) fillAiForm(); };
   $('aiProvider').onchange = aiHelp;
   $('aiForm').onsubmit = async (e) => {
     e.preventDefault();
+    if (DEMO) return toast('The demo has no AI key. Pair your own computer to set one up.');
     const c = aiFormCfg();
     if (!c.key) return toast('Paste your API key');
     if (c.provider === 'custom' && !/^https:\/\//.test(c.url)) return toast('Enter the API address (https://…)');
@@ -727,15 +748,28 @@ function setupAsk() {
 
 // ---------- UI wiring ----------
 const PAGE_TITLES = { home: 'Menu', queue: 'Send a command', snippets: 'Saved commands', ask: 'Ask AI', power: 'Power and battery', settings: 'Settings' };
+let sheetTab = null;
 function openSheet(tab) {
   closeQuick();
+  const sh = $('sheet'), wasOpen = sh.classList.contains('show') && !sh.classList.contains('closing');
+  sh.classList.remove('closing');
   $('tabs').hidden = tab !== 'home';
   document.querySelectorAll('.pane').forEach((p) => p.classList.toggle('on', p.id === 'pane-' + tab));
+  // pages slide in from the right; going back slides the menu in from the left
+  const el = tab === 'home' ? $('tabs') : $('pane-' + tab);
+  el.classList.remove('in', 'back-in');
+  if (wasOpen && sheetTab !== tab) { void el.offsetWidth; el.classList.add(tab === 'home' ? 'back-in' : 'in'); }
+  sheetTab = tab;
   $('sheetTitle').textContent = PAGE_TITLES[tab] || 'Menu';
   $('sheet').classList.toggle('home', tab === 'home');
   $('sheet').classList.add('show');
   if (tab === 'queue') setTimeout(() => $('qcmd').focus(), 50);
   if (tab === 'ask') { paintAsk(); setTimeout(() => $('askIn').focus(), 50); }
+}
+function closeSheet() {
+  const sh = $('sheet'); if (!sh.classList.contains('show') || sh.classList.contains('closing')) return;
+  sh.classList.add('closing'); sheetTab = null;
+  setTimeout(() => { sh.classList.remove('show', 'closing'); }, matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 190);
 }
 function setupUi() {
   document.querySelectorAll('[data-mod]').forEach((b) => { modBtn[b.dataset.mod] = b;
@@ -756,7 +790,7 @@ function setupUi() {
   $('menuBtn').onclick = () => openSheet('home');
   $('askBtn').onclick = () => openSheet('ask');
   $('sheetBack').onclick = () => openSheet('home');
-  $('sheetClose').onclick = () => { $('sheet').classList.remove('show'); term.focus(); };
+  $('sheetClose').onclick = () => { closeSheet(); term.focus(); };
   $('menuFoot').textContent = `Pocket Terminal ${'v' + APP_VERSION}`;
   setupAsk();
   $('bannerForm').onsubmit = (e) => { e.preventDefault(); const c = $('bannerCmd').value; if (!c.trim()) return; runCommand(c); $('bannerCmd').value = ''; $('bannerCmd').blur(); toast(dc && dc.readyState === 'open' ? 'Running…' : "Sent. It runs at the next check-in."); };
@@ -769,7 +803,7 @@ function setupUi() {
     if (dc && dc.readyState === 'open') { input(s.cmd + '\r'); term.focus(); }
     else { runCommand(s.cmd); toast(`Sent “${s.name}”. The reply lands in ⋯ → Send a command.`); }
   };
-  $('sheet').onclick = (e) => { if (e.target.id === 'sheet') { $('sheet').classList.remove('show'); term.focus(); } };
+  $('sheet').onclick = (e) => { if (e.target.id === 'sheet') { closeSheet(); term.focus(); } };
 
   $('qform').onsubmit = (e) => { e.preventDefault(); runCommand($('qcmd').value); $('qcmd').value = ''; };
   $('jobs').onclick = (e) => {
@@ -789,7 +823,7 @@ function setupUi() {
     if (del) { snippets = snippets.filter((s) => s.id !== del.dataset.sdel); return renderSnips(); }
     if (!run) return;
     const s = snippets.find((x) => x.id === run.dataset.run); if (!s) return;
-    if (dc && dc.readyState === 'open') { input(s.cmd + '\r'); $('sheet').classList.remove('show'); }
+    if (dc && dc.readyState === 'open') { input(s.cmd + '\r'); closeSheet(); }
     else { runCommand(s.cmd); openSheet('queue'); }
   };
 
@@ -804,7 +838,7 @@ function setupUi() {
     } catch (e) { $('pNote').textContent = e.message; }
   }));
 
-  $('retryDirect').onclick = () => { lastAttempt = 0; connect(); $('sheet').classList.remove('show'); };
+  $('retryDirect').onclick = () => { lastAttempt = 0; connect(); closeSheet(); };
   $('copyTopic').onclick = async () => { try { await navigator.clipboard.writeText(S.notifyTopic); toast('Copied. Paste it in the ntfy app → Subscribe.'); } catch { toast(S.notifyTopic); } };
   $('lockNow').onclick = async () => { await idbDel('session'); location.reload(); };
   $('appVer').textContent = 'v' + APP_VERSION + ' · checks for updates when you reload';
@@ -815,7 +849,108 @@ function setupUi() {
     location.reload();
   };
   $('unpair').onclick = async () => { if (!confirm('Remove the pairing key from this phone?')) return; store.del('vault'); store.del('jobs'); store.del('ai'); await idbDel('session'); location.reload(); };
+  const paintTheme = () => document.querySelectorAll('#themeSeg button').forEach((b) => b.classList.toggle('on', b.dataset.v === window.ptTheme.pick()));
+  document.querySelectorAll('#themeSeg button').forEach((b) => (b.onclick = () => { store.set('theme', b.dataset.v); window.ptTheme.apply(); paintTheme(); }));
+  paintTheme();
+  if (DEMO) {
+    const leave = () => { location.replace(location.pathname); };
+    $('lockNow').onclick = $('unpair').onclick = leave;
+    $('unpair').textContent = 'Leave demo'; $('lockNow').textContent = 'Leave';
+  }
   renderJobs(); renderSnips();
+}
+
+// ---------- demo mode ----------
+// A pretend computer: a tiny line editor with a few canned commands, sample history and power data.
+// "pmset sleepnow" puts it to sleep for 20 s so you can see the asleep state and the lamp filling up.
+const C = { dim: '\x1b[90m', b: '\x1b[1m', g: '\x1b[32m', y: '\x1b[33m', bl: '\x1b[34m', c: '\x1b[36m', r: '\x1b[31m', x: '\x1b[0m' };
+const PROMPT = `${C.g}utsav@MacBook-Pro${C.x} ${C.bl}~${C.x} %% `.replace('%%', '%');
+const DEMO_OUT = {
+  help: `Try: ${C.b}ls${C.x}, ${C.b}git status${C.x}, ${C.b}df -h${C.x}, ${C.b}uptime${C.x}, ${C.b}pmset -g batt${C.x}, ${C.b}whoami${C.x}, ${C.b}date${C.x}, ${C.b}clear${C.x}\r\nOr ${C.b}pmset sleepnow${C.x} to watch it fall asleep and wake up again.`,
+  ls: `${C.bl}${C.b}Claude_Work${C.x}  ${C.bl}${C.b}Desktop${C.x}  ${C.bl}${C.b}Documents${C.x}  ${C.bl}${C.b}Downloads${C.x}  ${C.bl}${C.b}pocket-terminal${C.x}  notes.md`,
+  pwd: '/Users/utsav', whoami: 'utsav',
+  uptime: '14:02  up 3 days,  4:11, 2 users, load averages: 1.42 1.37 1.29',
+  'git status': `On branch ${C.g}main${C.x}\r\nYour branch is up to date with 'origin/main'.\r\n\r\nChanges not staged for commit:\r\n\t${C.r}modified:   docs/css/app.css${C.x}\r\n\t${C.r}modified:   docs/js/app.js${C.x}`,
+  'df -h': `Filesystem      Size   Used  Avail Capacity  Mounted on\r\n/dev/disk3s1s1 460Gi   11Gi  281Gi     4%    /\r\n/dev/disk3s5   460Gi  162Gi  281Gi    37%    /System/Volumes/Data`,
+  'pmset -g batt': `Now drawing from 'Battery Power'\r\n -InternalBattery-0 (id=4653155)\t${'78%'}; discharging; 9:41 remaining present: true`,
+  'git pull': 'Already up to date.',
+};
+const demoRun = (cmd) => {
+  const c = cmd.trim().replace(/\s+/g, ' ');
+  if (c === 'date') return { code: 0, out: new Date().toString() };
+  if (c.startsWith('echo ')) return { code: 0, out: c.slice(5).replace(/^["']|["']$/g, '') };
+  if (DEMO_OUT[c] != null) return { code: 0, out: DEMO_OUT[c] };
+  return { code: 127, out: `zsh: command not found: ${c.split(' ')[0]}\r\n${C.dim}(This is the demo. Type ${C.x}help${C.dim} to see what it knows.)${C.x}` };
+};
+const plain = (t) => t.replace(/\x1b\[[0-9;]*m/g, '').replace(/\r/g, '');
+let demoLine = '', demoHist = [], demoHi = 0;
+function demoShell(m) {
+  const out = (d) => setTimeout(() => handleMsg({ t: 'o', d }), 0);
+  if (m.t === 'ping') return setTimeout(() => handleMsg({ t: 'pong' }), 18 + Math.random() * 20);
+  if (m.t === 'cmd') return setTimeout(() => { const r = demoRun(m.cmd); handleMsg({ t: 'result', id: m.id, code: r.code, out: plain(r.out) }); }, 900);
+  if (m.t === 'settings') { livePower.settings = { ...livePower.settings, ...m.power }; return setTimeout(() => handleMsg({ t: 'power', ...livePower }), 200); }
+  if (m.t !== 'i') return;
+  let d = m.d;
+  while (d.length) {
+    const esc = d.match(/^\x1b\[[A-D]/);
+    if (esc) {
+      d = d.slice(3);
+      if (esc[0] === '\x1b[A' || esc[0] === '\x1b[B') {
+        if (!demoHist.length) continue;
+        demoHi = Math.max(0, Math.min(demoHist.length, demoHi + (esc[0] === '\x1b[A' ? -1 : 1)));
+        demoLine = demoHist[demoHi] || ''; out('\r\x1b[K' + PROMPT + demoLine);
+      }
+      continue;
+    }
+    if (d[0] === '\x1b') { d = d.replace(/^\x1b(\[[0-9;]*[~A-Za-z])?/, ''); continue; }
+    const ch = d[0]; d = d.slice(1);
+    if (ch === '\r') {
+      const c = demoLine.trim(); demoLine = '';
+      if (c) { demoHist.push(c); demoHi = demoHist.length; }
+      if (c === 'clear') { out('\x1b[2J\x1b[H' + PROMPT); continue; }
+      if (c === 'pmset sleepnow') { out('\r\n'); demoSleep(); continue; }
+      out('\r\n' + (c ? demoRun(c).out + '\r\n' : '') + PROMPT);
+    } else if (ch === '\x7f' || ch === '\b') { if (demoLine) { demoLine = demoLine.slice(0, -1); out('\b \b'); } }
+    else if (ch === '\x03') { demoLine = ''; out('^C\r\n' + PROMPT); }
+    else if (ch === '\x0c') { out('\x1b[2J\x1b[H' + PROMPT + demoLine); }
+    else if (ch === '\t') {
+      const hit = Object.keys(DEMO_OUT).concat(['date', 'clear', 'echo ']).find((k) => demoLine && k.startsWith(demoLine) && k !== demoLine);
+      if (hit) { out(hit.slice(demoLine.length)); demoLine = hit; }
+    } else if (ch >= ' ') { demoLine += ch; out(ch); }
+  }
+}
+const demoDc = { readyState: 'open', send: (raw) => demoShell(JSON.parse(raw)), close() {} };
+function demoWake() {
+  dc = demoDc; linkState = 'direct'; mac.state = 'online'; mac.ts = Date.now();
+  flushPending(); paint();
+  for (const j of jobs.filter((x) => x.status === 'waiting')) { j.status = 'running'; sendTerm({ t: 'cmd', id: j.cid, cmd: j.cmd }); }
+  saveJobs();
+}
+function demoSleep() {
+  dc = null; rtt = null; paintPing();
+  linkState = 'waiting'; Object.assign(mac, { state: 'sleeping', ts: Date.now(), nextWake: Date.now() + 20e3, checkIn: 20 / 60 });
+  paint();
+  setTimeout(() => { linkState = 'connecting'; mac.state = null; paint(); }, 20e3);
+  setTimeout(() => { demoWake(); handleMsg({ t: 'o', d: `${C.dim}[woke up by itself and reconnected]${C.x}\r\n` + PROMPT }); }, 21.4e3);
+}
+function startDemo() {
+  S = { name: 'MacBook Pro', notifyTopic: 'ptn-demo-1a2b3c', boards: [] };
+  keys = null; mac.name = S.name;
+  board = { up: new Set([1]), restart() {}, stop() {}, start() {}, publish: async () => {} };
+  livePower = { t: 'power', percent: 78, onCharger: false, reasons: ['phone connected'],
+    settings: { batteryMode: 'saver', checkInMinutes: 2, smartCheckIn: true, minBattery: 20, awakeOnCharger: true } };
+  const now = Date.now();
+  jobs = [
+    { cid: 'd1', cmd: 'git -C ~/pocket-terminal pull', created: now - 4 * 60e3, finished: now - 4 * 60e3 + 2000, status: 'done', code: 0, out: 'Already up to date.' },
+    { cid: 'd2', cmd: 'npm test --prefix ~/pocket-terminal/agent', created: now - 52 * 60e3, finished: now - 51 * 60e3, status: 'done', code: 0, out: '> pocket-terminal-agent@6.2.0 test\n> node --test\n\n# tests 41\n# pass 41\n# fail 0' },
+    { cid: 'd3', cmd: 'brew upgrde node', created: now - 3 * 3600e3, finished: now - 3 * 3600e3 + 900, status: 'done', code: 1, out: 'Error: Unknown command: upgrde\nDid you mean "upgrade"?' },
+  ];
+  show('app'); $('notifyTopic').textContent = S.notifyTopic;
+  setupTerminal(); setupUi(); paintAiInfo();
+  const tag = document.createElement('span'); tag.className = 'tick demo'; tag.textContent = 'Demo'; $('ping').before(tag);
+  linkState = 'connecting'; paint(); setInterval(paint, 1000);
+  term.write(`${C.y}●${C.x} ${C.b}Pocket Terminal demo${C.x}\r\n${C.dim}A pretend computer, nothing real.${C.x}\r\n${C.dim}Type ${C.x}help${C.dim} to start, or tap ⋯${C.x}\r\n\r\n`);
+  setTimeout(() => { demoWake(); handleMsg({ t: 'o', d: PROMPT }); }, 1100);
 }
 
 boot();

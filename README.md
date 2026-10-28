@@ -9,6 +9,8 @@
   <img alt="No server needed" src="https://img.shields.io/badge/server-not%20needed-4FD1A1?style=flat-square&labelColor=171B2D">
 </p>
 
+<p align="center"><b><a href="https://utsavdoye20122005.github.io/pocket-terminal/#demo">▶ Try the live demo on your phone</a></b>, no install needed.</p>
+
 <p align="center">
   <a href="#-quick-start">Quick start</a> ·
   <a href="#-how-it-works">How it works</a> ·
@@ -281,6 +283,7 @@ python3 test/e2e_pairing.py # one-time QR, approval code, reused QR, two phones 
 python3 test/e2e_scan.py    # iPhone home-screen app: scan the QR with the camera, or paste the link
 python3 test/e2e_autoconnect.py # the Mac falls asleep on its own; the app reconnects by itself when it wakes
 python3 test/e2e_mobile.py  # touch: Tab/^X keys, paste, swipe scrolls only the terminal, continue vs fresh terminal
+python3 test/e2e_demo.py    # demo mode: no pairing, pretend shell, sleep/wake, themes, stores nothing
 ```
 
 The end-to-end test pairs a phone, opens the direct link, runs commands, puts the computer to sleep,

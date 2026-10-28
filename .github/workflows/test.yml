@@ -57,3 +57,5 @@ jobs:
         run: python test/e2e_ask.py | tee out.txt && grep -q "ALL OK" out.txt
       - name: Auto-reconnect after the computer sleeps
         run: python test/e2e_autoconnect.py | tee out.txt && grep -q "ALL OK" out.txt
+      - name: Demo mode
+        run: python test/e2e_demo.py | tee out.txt && grep -q "ALL OK" out.txt

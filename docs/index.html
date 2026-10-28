@@ -8,15 +8,16 @@
 <meta name="description" content="Your computer's terminal on your phone. Direct, end-to-end encrypted, works with the lid closed.">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Pocket Terminal">
-<meta name="theme-color" content="#0F1220">
+<meta name="theme-color" content="#F4F5F7" id="themeColor">
 <title>Pocket Terminal</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon.svg">
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="stylesheet" href="vendor/xterm.css">
 <link rel="stylesheet" href="css/app.css">
+<script src="js/theme.js"></script>
 </head>
 <body>
 
@@ -80,6 +81,7 @@
       <button class="btn" id="scanBtn" type="button">Scan QR code</button>
       <button class="btn ghost" id="pasteBtn" type="button">Paste pairing link</button>
     </div>
+    <button class="linkbtn" id="demoBtn" type="button">See a demo first →</button>
     <form class="row2 pasteform" id="pasteForm" hidden>
       <input class="field-in" id="pasteIn" placeholder="https://…#join=…" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
       <button class="btn">Pair</button>
@@ -208,6 +210,7 @@
         <div class="row2"><button class="btn">Save</button><button type="button" class="btn ghost" id="aiTest">Test</button><button type="button" class="btn ghost" id="aiOff">Turn off</button></div>
         <p class="note" id="aiNote"></p>
       </form>
+      <div class="field"><div>Appearance</div><div class="seg" id="themeSeg"><button data-v="light">Light</button><button data-v="dark">Dark</button><button data-v="auto">Auto</button></div></div>
       <div class="field"><div>Text size</div><div class="seg"><button id="smaller" aria-label="Smaller text">A−</button><button id="bigger" aria-label="Bigger text">A+</button></div></div>
       <div class="field"><div>App version<small id="appVer">–</small></div><button class="btn small ghost" id="reloadApp">Reload app</button></div>
       <div class="field"><div>Lock now<small>Asks for your PIN next time</small></div><button class="btn small ghost" id="lockNow">Lock</button></div>
