@@ -42,7 +42,7 @@ for your commands, then goes back to sleep.
 | 🔐 **End-to-end encrypted** | A key only your devices have. Nothing in the middle can read a single character. |
 | ✦ **Ask in plain English** | "My app says port 3000 is in use" → the right command for your Mac or Windows PC, explained, ready to run. |
 | 🔎 **Half-remember a command?** | Type `git sta` or "big files" and pick from 70+ built-in commands, your saved ones and your history. Works offline. |
-| ⚡ **One-tap commands** | Save your common commands as chips above the keyboard. |
+| ⚡ **One-tap commands** | Your saved commands sit behind the ⚡ key on the key bar. |
 | 📬 **Send now, runs later** | Computer asleep? Send the command anyway; the reply comes back to your phone. |
 | 🔋 **Battery-safe** | It never stays awake below 20% battery and stops waking below 10%. |
 | 🛡️ **Only phones you approve** | Each QR code works once. The computer shows a 6-digit code and you type `y`. Remove any phone later. |
@@ -84,7 +84,7 @@ A small "power brain" on your computer decides when to stay awake:
 | Below 10% battery | Waits until you charge |
 
 Each check-in keeps the computer awake for about 6 seconds, so frequent check-ins stay cheap.
-You can change all of this from the phone: **☰ → Power**.
+You can change all of this from the phone: **⋯ → Power and battery**.
 
 ## ✦ Forgot the command? Just ask
 
@@ -100,7 +100,7 @@ Tap **✦** and type what you want, either in plain English or the bit of the co
   [OpenRouter](https://openrouter.ai/keys) (one key for all of them), or **any OpenAI-compatible API** via
   *Custom*. [Groq](https://console.groq.com/keys) and [Gemini](https://aistudio.google.com/apikey) keys are free.
   It knows whether your computer runs zsh or PowerShell. A **Test** button checks your key.
-- **✦ Fix with AI.** When a command fails, tap *Fix with AI* in **Commands**. It sends that command and
+- **✦ Fix with AI.** When a command fails, tap *Fix with AI* in **⋯ → Send a command**. It sends that command and
   the end of its output, and you get back what went wrong and the command to run instead.
 - **Nothing runs by itself.** You see each command, a one-line explanation and a
   <code>safe</code> / <code>careful</code> / <code>danger</code> label. The app checks every command itself
@@ -109,7 +109,7 @@ Tap **✦** and type what you want, either in plain English or the bit of the co
 - **Private.** The key is stored encrypted on your phone. Only the sentence you type goes to the AI,
   straight from your phone. Your files, command output and computer never do.
 
-Set it up in **☰ → Settings → AI helper**.
+Set it up in **⋯ → Settings → AI helper**.
 
 <br clear="right">
 
@@ -168,12 +168,12 @@ That's it. Open the app and you'll see your computer **awake, connected directly
 
 | I want to… | Do this |
 |---|---|
-| Run something quickly | Tap a saved-command chip, or type in the terminal |
+| Run something quickly | Tap ⚡ on the key bar and pick a saved command, or type in the terminal |
 | Find a command I half-remember | Tap **✦**, type what you remember |
 | Turn English into a command | Tap **✦**, type it, tap **Ask AI** (needs a key in Settings) |
-| Save a command | Tap **+ Save a command**, or **Save** on any suggestion |
-| Run something while it sleeps | Type it in the "asleep" card; the reply shows in **☰ → Commands** |
-| Get a ping when it finishes | Install the free [ntfy app](https://ntfy.sh) and subscribe to the topic in **☰ → Settings** |
+| Save a command | ⚡ → **+ Save a command**, or **Save** on any Ask suggestion |
+| Run something while it sleeps | Type it in the "asleep" card; the reply lands in **⋯ → Send a command** |
+| Get a ping when it finishes | Install the free [ntfy app](https://ntfy.sh) and subscribe to the topic in **⋯ → Settings** |
 | Pair another phone | `node pair.js` (in the `agent` folder), a fresh one-time QR code |
 | See which phones can connect | `node pair.js --list` |
 | Lock one phone out | `node pair.js --remove "iPhone (Safari)"` (or `--remove all`). Works within seconds |

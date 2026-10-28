@@ -26,6 +26,11 @@
     <img class="mark" src="icon.svg" alt="">
     <h1 id="pairTitle">Pair with your computer</h1>
     <p id="pairHint">Choose a PIN for this phone (6 or more digits).</p>
+    <div class="iosnote" id="replaceNote" hidden>
+      <b>Already paired</b>
+      <p id="replaceText"></p>
+      <div class="row2"><button class="btn ghost small" id="replaceNo" type="button">Keep my pairing</button><button class="btn small" id="replaceYes" type="button">Replace it</button></div>
+    </div>
     <div class="iosnote" id="iosNote" hidden>
       <b>On iPhone, pair inside the Home Screen app</b>
       <ol>
@@ -86,56 +91,61 @@
 <!-- The app -->
 <div id="app" hidden>
   <header class="bar">
-    <div class="presence off" id="presence" aria-hidden="true">
-      <svg viewBox="0 0 40 40" fill="none" stroke-width="3"><circle class="track" cx="20" cy="20" r="17"/><circle class="arc" id="arc" cx="20" cy="20" r="17" stroke-dasharray="106.8" stroke-dashoffset="0"/></svg>
-      <span class="lid"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="11" rx="1.5"/><path d="M2 19h20"/></svg></span>
-    </div>
+    <div class="presence off" id="presence" aria-hidden="true"><i></i></div>
     <div class="who"><b id="macName">Your computer</b><span id="status">Connecting…</span></div>
     <span class="batt" id="batt" hidden></span>
-    <button class="iconbtn ask" id="askBtn" aria-label="Find a command">
-      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>
-    </button>
-    <button class="iconbtn" id="menuBtn" aria-label="Menu">
-      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
-      <span class="badge" id="qn"></span>
-    </button>
+    <button class="iconbtn ask" id="askBtn" aria-label="Ask AI for a command"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg></button>
+    <button class="iconbtn" id="menuBtn" aria-label="Menu"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/></svg><span class="badge" id="qn"></span></button>
   </header>
 
+  <div class="lamp" aria-hidden="true"><i id="arc"></i></div>
   <div id="term">
     <div class="card-state" id="banner" hidden>
-      <h2 id="bannerTitle"></h2>
-      <p id="bannerText"></p>
+      <div class="cs-text"><h2 id="bannerTitle"></h2><p id="bannerText"></p></div>
       <form id="bannerForm">
-        <input class="field-in" id="bannerCmd" placeholder="Run a command…" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="send">
+        <input class="field-in" id="bannerCmd" placeholder="Run when it wakes…" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="send">
         <button class="btn">Send</button>
       </form>
       <div class="row" id="bannerRow"></div>
     </div>
   </div>
 
-  <div class="chips" id="chips"></div>
+  <div class="quick" id="quick" hidden>
+    <div class="chips" id="chips"></div>
+  </div>
   <div class="keys" id="keys">
-    <button data-k="esc">Esc</button><button data-k="tab">Tab</button>
-    <button data-mod="ctrl">Ctrl</button><button data-mod="alt">Alt</button>
+    <button data-k="quick" class="kq" aria-label="Saved commands"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 3L5 13h6l-1 8 8-10h-6z"/></svg></button>
+    <button data-k="esc">esc</button><button data-k="tab">tab</button>
+    <button data-mod="ctrl">ctrl</button><button data-mod="alt">alt</button>
+    <button data-k="cc">^C</button>
     <button data-k="up" aria-label="Up">↑</button><button data-k="down" aria-label="Down">↓</button><button data-k="left" aria-label="Left">←</button><button data-k="right" aria-label="Right">→</button>
-    <button data-k="cc">^C</button><button data-k="cx" aria-label="Control X">^X</button><button data-k="co" aria-label="Control O">^O</button><button data-k="cd">^D</button><button data-k="cz">^Z</button><button data-k="cl">^L</button><button data-k="cr">^R</button>
+    <button data-k="paste">paste</button>
+    <button data-k="cx" aria-label="Control X">^X</button><button data-k="co" aria-label="Control O">^O</button><button data-k="cd">^D</button><button data-k="cz">^Z</button><button data-k="cl">^L</button><button data-k="cr">^R</button>
     <button data-t="|">|</button><button data-t="~">~</button><button data-t="/">/</button><button data-t="-">-</button>
     <button data-t="_">_</button><button data-t="&gt;">&gt;</button><button data-t="$">$</button><button data-t="&amp;">&amp;</button>
-    <button data-k="home">Home</button><button data-k="end">End</button><button data-k="pgup">PgUp</button><button data-k="pgdn">PgDn</button>
-    <button data-k="paste">Paste</button>
+    <button data-k="home">home</button><button data-k="end">end</button><button data-k="pgup">pg↑</button><button data-k="pgdn">pg↓</button>
   </div>
 </div>
 
 <div class="sheet" id="sheet">
-  <div class="panel" role="dialog" aria-label="Menu">
-    <div class="grab"></div>
-    <div class="tabs" id="tabs">
-      <button data-tab="ask">Ask</button>
-      <button data-tab="queue">Commands</button>
-      <button data-tab="snippets">Snippets</button>
-      <button data-tab="power">Power</button>
-      <button data-tab="settings">Settings</button>
-    </div>
+  <div class="panel" role="dialog" aria-labelledby="sheetTitle">
+    <header class="sheethead">
+      <button class="back" id="sheetBack" type="button" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg><span>Menu</span></button>
+      <h2 id="sheetTitle">Menu</h2>
+      <button class="done" id="sheetClose" type="button">Done</button>
+    </header>
+    <nav class="menu" id="tabs">
+      <div class="group">
+        <button data-tab="queue"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17l6-5-6-5"/><path d="M12 19h8"/></svg><span><b>Send a command</b><small>Runs even while the computer sleeps</small></span><em class="count" id="qn2"></em></button>
+        <button data-tab="snippets"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 3L5 13h6l-1 8 8-10h-6z"/></svg><span><b>Saved commands</b><small>Your one-tap shortcuts</small></span></button>
+        <button data-tab="ask"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/></svg><span><b>Ask AI</b><small>Find a command, or describe it in plain English</small></span></button>
+      </div>
+      <div class="group">
+        <button data-tab="power"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="16" height="10" rx="2"/><path d="M22 11v2"/><path d="M7 10v4"/></svg><span><b>Power and battery</b><small>How it sleeps and wakes up</small></span></button>
+        <button data-tab="settings"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span><b>Settings</b><small>AI helper, notifications, lock, unpair</small></span></button>
+      </div>
+      <p class="menufoot" id="menuFoot"></p>
+    </nav>
     <div class="pane" id="pane-ask">
       <form class="row2" id="askForm">
         <input class="field-in plain" id="askIn" placeholder="find big files in Downloads" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="search">
@@ -147,16 +157,16 @@
       <div class="list" id="askLib"></div>
     </div>
     <div class="pane" id="pane-queue">
-      <p class="hint">Runs once, in your home folder, up to 10 minutes. If the computer is asleep it runs at the next check-in, and the reply shows up here.</p>
+      <p class="hint">Runs once in your home folder, for up to 10 minutes. If the computer is asleep, it runs at the next check-in and the reply lands here.</p>
       <form class="row2" id="qform">
         <input class="field-in" id="qcmd" placeholder="git -C ~/project pull" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="send">
         <button class="btn">Run</button>
       </form>
       <div class="list" id="jobs"></div>
-      <div style="text-align:center;margin-top:12px"><button class="btn ghost small" id="clearDone">Clear finished</button></div>
+      <div class="center"><button class="btn ghost small" id="clearDone">Clear finished</button></div>
     </div>
     <div class="pane" id="pane-snippets">
-      <p class="hint">Your saved commands. They also show as chips above the keyboard. Tap one to run it.</p>
+      <p class="hint">Tap one to run it. They are also behind the ⚡ key on the key bar.</p>
       <div class="list" id="snips"></div>
       <form class="row2" id="sform" style="margin-top:12px">
         <input class="field-in name" id="sname" placeholder="Name" maxlength="40">

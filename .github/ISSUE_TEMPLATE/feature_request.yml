@@ -1,0 +1,14 @@
+name: Feature idea
+description: Suggest something that would make Pocket Terminal better
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help?

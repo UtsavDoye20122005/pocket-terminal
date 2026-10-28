@@ -4,12 +4,12 @@
 //       post encrypted "hello" + "offer" → Mac answers → direct WebRTC link → live terminal.
 // If the direct link can't open, commands go as encrypted notes through the board instead.
 
-import { derive, seal, open, randomId, lockSecret, unlockSecret, newPairKey, pairCode, unwrapJoin } from './crypto.js';
+import { derive, seal, open, randomId, lockSecret, unlockSecret, newPairKey, pairCode, unwrapJoin, VAULT_ROUNDS } from './crypto.js';
 import { Board, MAX_NOTE } from './board.js';
 import { search, riskOf, needsFill, askAi, PROVIDERS } from './helper.js';
 
 const $ = (id) => document.getElementById(id);
-const APP_VERSION = '5.4';
+const APP_VERSION = '6.0';
 const DEFAULT_BOARDS = ['https://ntfy.sh'];
 const ICE = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] }];
 const store = {
@@ -117,6 +117,15 @@ function closeScanner() {
 
 // ---------- one-time pairing: the computer must approve this phone ----------
 async function joinFlow(j, here = false) {
+  const old = store.get('vault');
+  if (old && !j.replaceOk) {
+    $('pairTitle').textContent = `Pair with ${j.name}?`; $('pairHint').textContent = '';
+    $('pairPad').hidden = $('pairDots').hidden = true; $('iosNote').hidden = true; $('replaceNote').hidden = false;
+    $('replaceText').textContent = `This phone is already paired with ${old.name}. Pairing with ${j.name} replaces it. Only continue if you just ran node pair.js on your own computer.`;
+    $('replaceYes').onclick = () => { $('replaceNote').hidden = true; joinFlow({ ...j, replaceOk: true }, here); };
+    $('replaceNo').onclick = () => location.replace(location.pathname);
+    return;
+  }
   // iPhone: a pairing made in Safari stays in Safari. Send people to the Home Screen app first.
   if (isIOS && !standalone && !here) {
     $('pairTitle').textContent = `Pair with ${j.name}`; $('pairHint').textContent = '';
@@ -222,6 +231,9 @@ function lockFlow(vault) {
         $('lockErr').textContent = `Wrong PIN. ${10 - f} tries left before this phone is unpaired.`; return;
       }
       p.done(); store.set('fails', 0);
+      if ((vault.it || 310000) < VAULT_ROUNDS) { // older, weaker PIN lock: upgrade it now that we have the PIN
+        const up = await lockSecret(secret, pin); store.set('vault', { ...vault, ...up });
+      }
       const k = await derive(secret);
       const s = { key: k.key, topic: k.topic, notifyTopic: k.notifyTopic, boards: vault.boards || DEFAULT_BOARDS, name: vault.name, expires: Date.now() + ($('remember').checked ? 12 * 3600e3 : 0) };
       if ($('remember').checked) await idbSet('session', s); else await idbDel('session');
@@ -361,7 +373,7 @@ function wire(ch) {
     sendTerm({ t: 'attach', sid: SID, cols: term.cols, rows: term.rows }); // first, before any resize
     fit.fit(); sendTerm({ t: 'r', cols: term.cols, rows: term.rows });
     flushPending();
-    paint(); toast('Connected directly · end-to-end encrypted');
+    paint();
   };
   ch.onmessage = (e) => {
     let m; try { m = JSON.parse(e.data); } catch { return; }
@@ -394,7 +406,6 @@ function until(t) {
   const m = Math.floor(s / 60); return m ? `${m}:${String(s % 60).padStart(2, '0')}` : `${s}s`;
 }
 
-const RING = 106.8; // circumference of the presence ring
 function paint() {
   if (!term) return;
   const name = mac.name || 'your computer';
@@ -407,22 +418,23 @@ function paint() {
   else if (linkState === 'connecting' && !(mac.state === 'sleeping' && nci)) { look = 'connecting'; ring = 0.25; status = 'Connecting…'; }
   else if (linkState === 'noboard' || board.up.size === 0) {
     status = 'Offline';
-    banner = ["You're offline", "Can't reach the message board. Check this phone's internet; it retries by itself.", false, []];
+    banner = ["This phone is offline", "Check its internet connection. It reconnects by itself.", false, []];
   } else if (linkState === 'backup') {
     look = 'backup'; ring = 1; status = 'Backup route (slower)';
-    banner = ['Direct link blocked on this network', "Commands still work through the encrypted backup route. They're just a few seconds slower. The live terminal needs the direct link.", true, [['Try direct again', () => { lastAttempt = 0; connect(); }]]];
+    banner = ['This network blocks the direct link', "Commands still work, a few seconds slower. The live terminal needs the direct link.", true, [['Try again', () => { lastAttempt = 0; connect(); }]]];
   } else if (mac.state === 'sleeping' && nci) {
-    look = 'asleep'; ring = Math.max(0, Math.min(1, (nci - Date.now()) / ((mac.checkIn || 2) * 60e3)));
+    look = 'asleep'; ring = 1 - Math.max(0, Math.min(1, (nci - Date.now()) / ((mac.checkIn || 2) * 60e3))); // the lamp line fills up towards the check-in
     status = `Asleep · wakes in ${until(nci)}`;
-    banner = [`${name} is asleep`, `It checks in by itself in ${until(nci)}. Keep this open and it connects on its own, or send a command now and it runs at the check-in.${queuedText}`, true, []];
+    banner = [`${name} is asleep`, `It checks in by itself in ${until(nci)} and connects on its own. Anything you send now runs then.${queuedText}`, true, []];
   } else {
     status = mac.ts ? `Last seen ${ago(mac.ts)}` : 'Waiting…';
-    const longWait = retryN >= 4 ? " Still nothing after a few minutes? Check the computer is on and online. If you removed this phone there, go to ☰ → Settings → Unpair and pair again." : '';
-    banner = [`Waiting for ${name}`, `If it's asleep, it connects at its next check-in. If it's off or offline, commands you send run when it's back.${queuedText}${longWait}`, true, []];
+    const longWait = retryN >= 4 ? " Still nothing? Check that it's on and online. If you removed this phone there, open ⋯ → Settings → Unpair and pair again." : '';
+    banner = [`Waiting for ${name}`, `It connects as soon as it wakes up. Commands you send now run then.${queuedText}${longWait}`, true, []];
   }
   $('macName').textContent = name;
   $('presence').className = 'presence ' + look;
-  $('arc').style.strokeDashoffset = String(RING * (1 - ring));
+  $('app').classList.remove('awake', 'asleep', 'connecting', 'backup', 'off'); $('app').classList.add(look);
+  $('arc').style.transform = `scaleX(${look === 'connecting' ? 0.3 : ring})`;
   $('status').textContent = status;
   if (banner) {
     $('banner').hidden = false; $('bannerTitle').textContent = banner[0]; $('bannerText').textContent = banner[1];
@@ -463,7 +475,7 @@ function input(d) {
 function setupTerminal() {
   let size = store.get('font', matchMedia('(max-width:700px)').matches ? 13 : 15);
   term = new Terminal({ fontFamily: '"JB Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace', fontSize: size, cursorBlink: true, scrollback: 5000, allowTransparency: true,
-    theme: { background: '#0B0E19', foreground: '#E9E7F2', cursor: '#F4B740', cursorAccent: '#0B0E19', selectionBackground: '#3A3460',
+    theme: { background: '#080A14', foreground: '#ECEAF4', cursor: '#F5B843', cursorAccent: '#080A14', selectionBackground: '#33305A',
       black: '#1E2338', red: '#FF7A7A', green: '#4FD1A1', yellow: '#F4B740', blue: '#7AA2FF', magenta: '#C79BFF', cyan: '#6FD3E6', white: '#E9E7F2',
       brightBlack: '#5D6283', brightRed: '#FF9C9C', brightGreen: '#7BE3BD', brightYellow: '#FFD07A', brightBlue: '#9DBBFF', brightMagenta: '#DAB8FF', brightCyan: '#9BE6F2', brightWhite: '#FFFFFF' } });
   fit = new FitAddon.FitAddon(); term.loadAddon(fit); term.open($('term')); setupTouchScroll();
@@ -472,7 +484,12 @@ function setupTerminal() {
   const setFont = (n) => { size = Math.max(9, Math.min(24, n)); term.options.fontSize = size; store.set('font', size); fit.fit(); };
   $('smaller').onclick = () => setFont(size - 1); $('bigger').onclick = () => setFont(size + 1);
   const app = $('app');
-  const layout = () => { const vv = window.visualViewport; app.style.height = (vv ? vv.height : innerHeight) + 'px'; if (vv) app.style.top = vv.offsetTop + 'px'; fit.fit(); };
+  const layout = () => {
+    const vv = window.visualViewport, h = vv ? vv.height : innerHeight;
+    app.style.height = h + 'px'; if (vv) app.style.top = vv.offsetTop + 'px';
+    app.classList.toggle('kb', !!vv && innerHeight - vv.height > 120); // keyboard is up: drop the home-bar padding under the keys
+    fit.fit();
+  };
   if (window.visualViewport) { visualViewport.addEventListener('resize', layout); visualViewport.addEventListener('scroll', layout); }
   addEventListener('resize', layout); layout();
   if (document.fonts) document.fonts.ready.then(layout); // refit once the terminal font has loaded
@@ -518,6 +535,9 @@ function setupTouchScroll() {
   }, { passive: false });
 }
 
+function toggleQuick() { const q = $('quick'); q.hidden = !q.hidden; document.querySelector('#keys .kq').classList.toggle('on', !q.hidden); requestAnimationFrame(() => fit.fit()); }
+function closeQuick() { if (!$('quick').hidden) toggleQuick(); }
+
 // ---------- commands (jobs) ----------
 let jobs = store.get('jobs', []);
 const saveJobs = () => { jobs = jobs.slice(0, 50); store.set('jobs', jobs); renderJobs(); };
@@ -537,7 +557,7 @@ function gotResult(cid, code, out) {
   toast(code === 0 ? `Done: ${j.cmd.slice(0, 40)}` : `Failed (exit ${code}): ${j.cmd.slice(0, 40)}`);
 }
 function renderJobs() {
-  $('qn').textContent = jobs.filter((j) => j.status === 'waiting' || j.status === 'running').length || '';
+  $('qn').textContent = $('qn2').textContent = jobs.filter((j) => j.status === 'waiting' || j.status === 'running').length || '';
   $('jobs').innerHTML = jobs.length ? jobs.map((j) => {
     const tag = j.status === 'done' ? (j.code === 0 ? '<span class="tag done">done</span>' : `<span class="tag fail">exit ${esc(j.code)}</span>`)
       : j.status === 'running' ? '<span class="tag running">running</span>' : j.status === 'error' ? '<span class="tag fail">not sent</span>' : '<span class="tag">waiting for computer</span>';
@@ -697,10 +717,14 @@ function setupAsk() {
 }
 
 // ---------- UI wiring ----------
+const PAGE_TITLES = { home: 'Menu', queue: 'Send a command', snippets: 'Saved commands', ask: 'Ask AI', power: 'Power and battery', settings: 'Settings' };
 function openSheet(tab) {
-  document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
+  closeQuick();
+  $('tabs').hidden = tab !== 'home';
   document.querySelectorAll('.pane').forEach((p) => p.classList.toggle('on', p.id === 'pane-' + tab));
-  $('sheet').classList.add('show'); store.set('tab', tab);
+  $('sheetTitle').textContent = PAGE_TITLES[tab] || 'Menu';
+  $('sheet').classList.toggle('home', tab === 'home');
+  $('sheet').classList.add('show');
   if (tab === 'queue') setTimeout(() => $('qcmd').focus(), 50);
   if (tab === 'ask') { paintAsk(); setTimeout(() => $('askIn').focus(), 50); }
 }
@@ -711,6 +735,7 @@ function setupUi() {
     tapKey(b, async () => {
       const k = b.dataset.k;
       if (k === 'paste') return pasteFlow();
+      if (k === 'quick') return toggleQuick();
       if (k) { const pre = mods.alt ? '\x1b' : ''; clearMods(); input(pre + KEYS[k]); }
       else input(applyMods(b.dataset.t));
       term.focus();
@@ -718,9 +743,12 @@ function setupUi() {
   });
   $('pasteSend').onclick = () => { const t = $('pasteText').value; closePaste(); if (t) { term.paste(t); toast('Pasted'); } };
   $('pasteCancel').onclick = closePaste;
-  document.querySelectorAll('#tabs button').forEach((b) => (b.onclick = () => openSheet(b.dataset.tab)));
-  $('menuBtn').onclick = () => openSheet(store.get('tab', 'queue') === 'ask' ? 'queue' : store.get('tab', 'queue'));
+  document.querySelectorAll('#tabs [data-tab]').forEach((b) => (b.onclick = () => openSheet(b.dataset.tab)));
+  $('menuBtn').onclick = () => openSheet('home');
   $('askBtn').onclick = () => openSheet('ask');
+  $('sheetBack').onclick = () => openSheet('home');
+  $('sheetClose').onclick = () => { $('sheet').classList.remove('show'); term.focus(); };
+  $('menuFoot').textContent = `Pocket Terminal ${'v' + APP_VERSION}`;
   setupAsk();
   $('bannerForm').onsubmit = (e) => { e.preventDefault(); const c = $('bannerCmd').value; if (!c.trim()) return; runCommand(c); $('bannerCmd').value = ''; $('bannerCmd').blur(); toast(dc && dc.readyState === 'open' ? 'Running…' : "Sent. It runs at the next check-in."); };
   $('chips').onclick = (e) => {
@@ -728,8 +756,9 @@ function setupUi() {
     if (e.target.id === 'askChip') return openSheet('ask');
     const c = e.target.closest('[data-run]'); if (!c) return;
     const s = snippets.find((x) => x.id === c.dataset.run); if (!s) return;
+    closeQuick();
     if (dc && dc.readyState === 'open') { input(s.cmd + '\r'); term.focus(); }
-    else { runCommand(s.cmd); toast(`Sent “${s.name}”. The reply shows in Commands.`); }
+    else { runCommand(s.cmd); toast(`Sent “${s.name}”. The reply lands in ⋯ → Send a command.`); }
   };
   $('sheet').onclick = (e) => { if (e.target.id === 'sheet') { $('sheet').classList.remove('show'); term.focus(); } };
 

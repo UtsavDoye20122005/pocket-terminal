@@ -1,0 +1,41 @@
+name: Bug report
+description: Something doesn't work as described
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: "**Security problem?** Don't post it here. Use **Security → Report a vulnerability** instead."
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to make it happen
+      placeholder: "1. …\n2. …"
+  - type: input
+    id: computer
+    attributes:
+      label: Computer
+      placeholder: "MacBook Air M2, macOS 15.1 / Windows 11 laptop"
+    validations:
+      required: true
+  - type: input
+    id: phone
+    attributes:
+      label: Phone and browser
+      placeholder: "iPhone 15, home-screen app / Android, Chrome"
+  - type: input
+    id: version
+    attributes:
+      label: App version
+      description: In the app, ☰ → Settings → App version
+  - type: textarea
+    id: log
+    attributes:
+      label: Last lines of the log
+      description: "Output of: tail -30 ~/.pocket-terminal/agent.log (it never contains your commands)"
+      render: text

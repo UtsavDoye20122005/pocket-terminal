@@ -28,7 +28,7 @@ for old in com.pocketterm.server com.pocketterminal.local; do
 done
 
 step 1/4 "Installing packages"
-npm install --omit=dev --no-fund --no-audit --loglevel=error
+npm ci --omit=dev --no-fund --no-audit --loglevel=error
 
 step 2/4 "Letting the power brain manage sleep"
 SUDOERS=/etc/sudoers.d/pocket-terminal

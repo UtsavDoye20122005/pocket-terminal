@@ -30,12 +30,15 @@ try:
         for c in ['ls', 'uptime -p', 'df -h / | tail -1', 'echo "deploy finished ✓"']:
             pg.keyboard.type(c + '\n'); time.sleep(0.6)
         time.sleep(1.2); pg.evaluate("document.activeElement.blur()"); shot(pg, 'terminal')
-        pg.click('#menuBtn'); pg.click('[data-tab=queue]')
+        pg.tap('#keys [data-k=quick]'); shot(pg, 'quick'); pg.tap('#keys [data-k=quick]')
+        ph.nav(pg, 'queue')
         for c in ['ls ~/projects', 'df -h / | tail -1']:
             pg.fill('#qcmd', c); pg.click('#qform button'); time.sleep(1.2)
         pg.evaluate("document.activeElement.blur()"); shot(pg, 'commands')
-        pg.click('[data-tab=power]'); shot(pg, 'power')
-        pg.click('#sheet', position={'x': 5, 'y': 5})
+        ph.nav(pg, 'settings'); shot(pg, 'settings')
+        pg.click('#sheetBack'); shot(pg, 'menu')
+        ph.nav(pg, 'power'); shot(pg, 'power')
+        ph.close_menu(pg)
         # unplug, leave, computer sleeps; come back to the asleep card
         json.dump({'percent': 64, 'onCharger': False, 'lid': True}, open(S + '/sim.json', 'w'))
         pg.close()

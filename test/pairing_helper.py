@@ -50,3 +50,14 @@ def pair(pg, R, env, pin='123456', shot=None):
     for _ in range(2): pg.keyboard.type(pin); pg.keyboard.press('Enter')
     out = pp.stdout.read(); pp.wait(5)
     return mac_code == ph, out, link
+
+def nav(pg, tab):
+    """Open a page of the app's menu (queue, snippets, ask, power, settings) from wherever you are."""
+    if not pg.is_visible('#sheet'):
+        pg.click('#menuBtn')
+    elif pg.is_hidden('#tabs'):
+        pg.click('#sheetBack')
+    pg.click(f'#tabs [data-tab={tab}]')
+
+def close_menu(pg):
+    if pg.is_visible('#sheet'): pg.click('#sheetClose')

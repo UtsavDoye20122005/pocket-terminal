@@ -18,8 +18,8 @@ if ($LASTEXITCODE) { Write-Host "Your Node.js is too old ($(& $node -v)). Instal
 New-Item -ItemType Directory -Force $Dir | Out-Null
 
 Step '1/4' 'Installing packages'
-npm install --omit=dev --no-fund --no-audit --loglevel=error
-if ($LASTEXITCODE) { Write-Host 'npm install failed. See the messages above.'; exit 1 }
+npm ci --omit=dev --no-fund --no-audit --loglevel=error
+if ($LASTEXITCODE) { Write-Host 'npm ci failed. See the messages above.'; exit 1 }
 
 Step '2/4' 'Power settings'
 # Let scheduled wake-ups wake the PC (on battery and plugged in).

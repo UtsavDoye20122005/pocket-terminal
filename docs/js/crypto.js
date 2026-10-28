@@ -49,19 +49,20 @@ export async function open(keys, str) {
 }
 
 // ----- PIN vault: the pairing secret never sits on the phone in plain form -----
-const PBKDF2_ROUNDS = 310000;
-async function pinKey(pin, salt) {
+const PBKDF2_ROUNDS = 600000; // OWASP 2023 for PBKDF2-SHA256. Older vaults record their own count.
+async function pinKey(pin, salt, rounds = PBKDF2_ROUNDS) {
   const base = await crypto.subtle.importKey('raw', enc.encode(pin), 'PBKDF2', false, ['deriveKey']);
-  return crypto.subtle.deriveKey({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations: PBKDF2_ROUNDS }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+  return crypto.subtle.deriveKey({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations: rounds }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
 }
+export const VAULT_ROUNDS = PBKDF2_ROUNDS;
 export async function lockSecret(secret, pin) {
   const salt = crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(12));
   const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, await pinKey(pin, salt), enc.encode(secret));
-  return { salt: b64u(salt), iv: b64u(iv), ct: b64u(ct) };
+  return { salt: b64u(salt), iv: b64u(iv), ct: b64u(ct), it: PBKDF2_ROUNDS };
 }
 export async function unlockSecret(vault, pin) {
   try {
-    const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: fromB64u(vault.iv) }, await pinKey(pin, fromB64u(vault.salt)), fromB64u(vault.ct));
+    const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: fromB64u(vault.iv) }, await pinKey(pin, fromB64u(vault.salt), vault.it || 310000), fromB64u(vault.ct));
     return dec.decode(plain);
   } catch { return null; }
 }

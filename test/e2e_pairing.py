@@ -29,6 +29,11 @@ try:
     me=phone(); match, out, link = ph.pair(me, R, env)
     check(1, 'my phone: same code on both screens, approved, connected', match and 'Paired "iPhone (Safari)"' in out and wait(lambda: awake(me), 40))
     check(2, 'the invite code is gone from the address bar', 'join=' not in me.url)
+    ppx, linkx = ph.start_invite(R, env); tab=me.context.new_page(); tab.goto(linkx)
+    check('2b', 'already paired: a pairing link asks before replacing (phishing guard)', wait(lambda: tab.is_visible('#replaceNote'), 8) and tab.is_hidden('#joinBox'))
+    tab.click('#replaceNo'); ppx.kill()
+    check('2c', '"Keep my pairing" keeps it', wait(lambda: tab.is_visible('#app') and tab.evaluate("JSON.parse(localStorage.getItem('pt_vault')).name")=='TestMac', 15))
+    tab.close()
     bro=phone(); ph.open_link(bro, link); time.sleep(8)
     check(3, "brother's phone, same QR again: no PIN screen, nothing paired", bro.is_hidden('#pairPad') and len(devices())==1 and 'awake' not in (bro.get_attribute('#presence','class') or ''))
     # two phones race for one fresh QR code

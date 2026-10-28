@@ -37,14 +37,14 @@ try:
     print('3 terminal:', bool(wait(pg, lambda: 'p2p-42' in pg.evaluate(rows).split('echo')[-1], 10)))
     vault=pg.evaluate("localStorage.getItem('pt_vault')"); cfg=json.load(open(S+'/home/direct.json')); print('4 vault has no plain secret:', cfg['devices'][0]['secret'] not in vault)
     # lock + wrong PIN + right PIN
-    pg.click('#menuBtn'); pg.click('[data-tab=settings]'); pg.click('#lockNow'); pg.wait_for_selector('#gate-lock:not([hidden])')
+    ph.nav(pg, 'settings'); pg.click('#lockNow'); pg.wait_for_selector('#gate-lock:not([hidden])')
     pg.keyboard.type('000000'); pg.keyboard.press('Enter'); time.sleep(1.5); print('5 wrong PIN:', pg.inner_text('#lockErr'))
     pg.keyboard.type('123456'); pg.keyboard.press('Enter')
     print('6 unlocked + reconnected:', bool(wait(pg, lambda: 'awake' in (pg.get_attribute('#presence','class') or ''), 40)))
     # command via direct link
-    pg.click('#menuBtn'); pg.click('[data-tab=queue]'); pg.fill('#qcmd','echo job-direct'); pg.click('#qform button')
+    ph.nav(pg, 'queue'); pg.fill('#qcmd','echo job-direct'); pg.click('#qform button')
     print('7 command over direct link:', wait(pg, lambda: pg.inner_text('#jobs .item pre').strip(), 10))
-    pg.click('#sheet', position={'x':5,'y':5})
+    ph.close_menu(pg)
     # sleep: unplug, close phone, Mac sleeps
     json.dump({'percent':60,'onCharger':False,'lid':True},open(S+'/sim.json','w'))
     pg.close(); st=lambda: open(f'/proc/{agent.pid}/stat').read().split()[2]
@@ -52,7 +52,7 @@ try:
     pg=ctx.new_page(); pg.goto(APP); 
     print('9 phone reopens:', wait(pg, lambda: 'asleep' in pg.inner_text('#status').lower() and pg.inner_text('#status'), 20))
     pg.screenshot(path=S+'/d_asleep.png')
-    pg.click('#menuBtn'); pg.click('[data-tab=queue]'); pg.fill('#qcmd','echo ran-after-wake'); pg.click('#qform button')
+    ph.nav(pg, 'queue'); pg.fill('#qcmd','echo ran-after-wake'); pg.click('#qform button')
     print('10 command while asleep:', wait(pg, lambda: pg.inner_text('#jobs .item .tag'), 5))
     time.sleep(32); agent.send_signal(signal.SIGCONT); t0=time.time()
     out=wait(pg, lambda: 'ran-after-wake' in pg.inner_text('#jobs .item pre') and pg.inner_text('#jobs .item pre').strip(), 40)
@@ -62,7 +62,7 @@ try:
     # backup route: Mac ignores offers
     agent.terminate(); agent.wait(); json.dump({'percent':60,'onCharger':True,'lid':True},open(S+'/sim.json','w'))
     agent=start_agent({'POCKET_NO_DIRECT':'1'}); pg.reload(); time.sleep(3)
-    pg.click('#menuBtn'); pg.click('[data-tab=queue]'); pg.fill('#qcmd','echo via-backup'); pg.click('#qform button')
+    ph.nav(pg, 'queue'); pg.fill('#qcmd','echo via-backup'); pg.click('#qform button')
     print('13 backup route (no direct link):', wait(pg, lambda: 'via-backup' in pg.inner_text('#jobs .item pre') and 'ok', 30))
     print('errors:', errs[:5]); b.close()
 finally:
