@@ -9,7 +9,7 @@ import { Board, MAX_NOTE } from './board.js';
 import { search, riskOf, needsFill, askAi, PROVIDERS } from './helper.js';
 
 const $ = (id) => document.getElementById(id);
-const APP_VERSION = '6.0';
+const APP_VERSION = '6.1';
 const DEFAULT_BOARDS = ['https://ntfy.sh'];
 const ICE = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] }];
 const store = {
@@ -244,7 +244,12 @@ function lockFlow(vault) {
 
 // ---------- main ----------
 let S, keys, board, term, fit;
-let lastPong = 0;
+let lastPong = 0, pingSent = 0, rtt = null;
+function paintPing() {
+  const el = $('ping'); const on = dc && dc.readyState === 'open' && rtt !== null;
+  el.hidden = !on; if (on) { el.textContent = `${rtt} ms`; el.className = 'tick ' + (rtt < 120 ? 'good' : rtt < 400 ? 'ok' : 'slow'); }
+}
+setInterval(() => { if (dc && dc.readyState === 'open' && document.visibilityState === 'visible') { pingSent = performance.now(); sendTerm({ t: 'ping' }); } else { rtt = null; paintPing(); } }, 5000);
 let pc = null, dc = null, linkState = 'idle', lastAttempt = 0, offerAt = 0, answerTimer = null, openTimer = null;
 const seen = new Set();
 const mac = { state: null, ts: 0, nextWake: null, checkIn: null, power: null, name: '' };
@@ -380,7 +385,7 @@ function wire(ch) {
     if (m.t === 'o') term.write(m.d);
     else if (m.t === 'reset') { term.reset(); if (m.d) term.write(m.d); }
     else if (m.t === 'power') { livePower = m; paint(); }
-    else if (m.t === 'pong') lastPong = Date.now();
+    else if (m.t === 'pong') { lastPong = Date.now(); if (pingSent) { rtt = Math.round(performance.now() - pingSent); pingSent = 0; paintPing(); } }
     else if (m.t === 'hi') { if (m.os) setOs(m.os); }
     else if (m.t === 'revoked') revoked();
     else if (m.t === 'result') gotResult(m.id, m.code, m.out);
@@ -414,7 +419,7 @@ function paint() {
   let look = 'off', ring = 0, status = '', banner = null;
   const queued = jobs.filter((j) => j.status === 'waiting').length;
   const queuedText = queued ? ` ${queued} command${queued > 1 ? 's' : ''} will run then.` : '';
-  if (linkState === 'direct') { look = 'awake'; ring = 1; status = 'Awake · direct, encrypted'; }
+  if (linkState === 'direct') { look = 'awake'; ring = 1; status = 'Live · encrypted'; }
   else if (linkState === 'connecting' && !(mac.state === 'sleeping' && nci)) { look = 'connecting'; ring = 0.25; status = 'Connecting…'; }
   else if (linkState === 'noboard' || board.up.size === 0) {
     status = 'Offline';
@@ -447,7 +452,7 @@ function paint() {
   } else $('banner').hidden = true;
   if (p && p.percent != null) {
     $('batt').hidden = false; $('batt').textContent = `${p.onCharger ? '⚡' : ''}${p.percent}%`;
-    $('batt').className = 'batt' + (p.onCharger ? ' charging' : p.percent < 20 ? ' low' : '');
+    $('batt').className = 'batt tick' + (p.onCharger ? ' charging' : p.percent < 20 ? ' low' : '');
   }
   $('connInfo').textContent = linkState === 'direct' ? 'Direct and end-to-end encrypted' : linkState === 'backup' ? 'Backup route: encrypted notes through the message board' : 'Not connected right now';
   paintPower(p, nci);
@@ -558,13 +563,17 @@ function gotResult(cid, code, out) {
 }
 function renderJobs() {
   $('qn').textContent = $('qn2').textContent = jobs.filter((j) => j.status === 'waiting' || j.status === 'running').length || '';
-  $('jobs').innerHTML = jobs.length ? jobs.map((j) => {
+  $('jobs').innerHTML = jobs.length ? jobs.map((j, i) => {
     const tag = j.status === 'done' ? (j.code === 0 ? '<span class="tag done">done</span>' : `<span class="tag fail">exit ${esc(j.code)}</span>`)
       : j.status === 'running' ? '<span class="tag running">running</span>' : j.status === 'error' ? '<span class="tag fail">not sent</span>' : '<span class="tag">waiting for computer</span>';
-    const out = j.status === 'done' || j.status === 'error' ? `<pre>${esc(j.out) || '(no output)'}</pre>` : '';
+    const lines = String(j.out || '').split('\n').filter(Boolean).length;
+    // newest result open; older ones fold to one line, like a trade history
+    const out = j.status === 'done' || j.status === 'error'
+      ? `<details${i === 0 ? ' open' : ''}><summary>Output · ${lines} line${lines === 1 ? '' : 's'}</summary><pre>${esc(j.out) || '(no output)'}</pre></details>` : '';
+    const st = j.status === 'done' ? (j.code === 0 ? 'ok' : 'fail') : j.status === 'running' ? 'run' : j.status === 'error' ? 'fail' : 'wait';
     const fix = j.status === 'done' && j.code !== 0 ? `<button class="x fixit" data-fix="${esc(j.cid)}">✦ Fix with AI</button>` : '';
-    return `<div class="item"><div class="top"><code>${esc(j.cmd)}</code>${tag}</div>${out}<div class="meta"><span>sent ${ago(j.created)}${j.finished ? ' · finished ' + ago(j.finished) : ''}</span><span>${fix}<button class="x" data-del="${esc(j.cid)}">remove</button></span></div></div>`;
-  }).join('') : '<div class="empty">No commands yet. Type one above and tap Run.</div>';
+    return `<div class="item job s-${st}"><div class="top"><i class="sdot"></i><code>${esc(j.cmd)}</code>${tag}</div>${out}<div class="meta"><span>sent ${ago(j.created)}${j.finished ? ' · finished ' + ago(j.finished) : ''}</span><span>${fix}<button class="x" data-del="${esc(j.cid)}">remove</button></span></div></div>`;
+  }).join('') : '<div class="empty">Nothing sent yet. Type a command above and tap Run.</div>';
 }
 
 // ---------- snippets (stored on this phone) ----------
